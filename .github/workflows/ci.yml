@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main, master]
   workflow_dispatch:
 
 concurrency:
@@ -104,10 +104,10 @@ jobs:
         run: npx ng test --watch=false
 
   deploy-notice:
-    # Render (API) and Vercel (SPA) deploy themselves on every push to master; this job only gates
+    # Hosts that auto-deploy the default branch do so on every push; this job only gates
     # on the checks above and flags any EF migration that still has to be applied to Supabase by hand.
     name: Post-merge deploy notice
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     needs: [backend, api-image, frontend]
     runs-on: ubuntu-latest
     steps:
@@ -142,5 +142,5 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ -n "$MIGRATIONS" ]; then
-            echo "::warning title=Pending migrations::New EF migration(s) landed on master — run dotnet ef database update against Supabase."
+            echo "::warning title=Pending migrations::New EF migration(s) landed on the default branch — run dotnet ef database update against Supabase."
           fi
