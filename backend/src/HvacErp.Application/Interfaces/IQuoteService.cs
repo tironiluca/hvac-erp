@@ -19,8 +19,8 @@ public interface IQuoteService
     Task RecallAsync(int id, RecallQuoteRequest request, CancellationToken cancellationToken = default);
     /// <summary>Marks the quote confirmed (terminal, locks editing). Sales/Admin only.</summary>
     Task ConfirmAsync(int id, CancellationToken cancellationToken = default);
-    /// <summary>Flips the SF acceptance flag (allowed on confirmed quotes). Sales/Admin only.</summary>
-    Task ToggleSfConfirmationAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>Flips the customer's acceptance of an incentive that requires it (allowed on confirmed quotes). Sales/Admin only.</summary>
+    Task ToggleIncentiveConfirmationAsync(int id, int schemeId, CancellationToken cancellationToken = default);
     /// <summary>Deletes a quote and its children.</summary>
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
 }

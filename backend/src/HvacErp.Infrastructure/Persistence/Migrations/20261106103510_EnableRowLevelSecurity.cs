@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using Microsoft.EntityFrameworkCore.Migrations;
+using static HvacErp.Infrastructure.Persistence.Migrations.RowLevelSecuritySql;
 
 #nullable disable
 
@@ -51,9 +52,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
         private const string UsersTable = "users";
         private const string MigrationsHistoryTable = "__EFMigrationsHistory";
 
-        private const string IsSalesOrAdmin = "(select app_private.current_app_role()) in ('Admin', 'Sales')";
-        private const string IsAdmin = "(select app_private.current_app_role()) = 'Admin'";
-
         /// <summary>Every table this migration secures (asserted against the EF model by the test suite).</summary>
         internal static IEnumerable<string> AllTables =>
             ReferenceTables.Concat(BusinessTables).Concat(AppendOnlyTables).Concat(SettingsTables)
@@ -64,7 +62,7 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
         {
             foreach (var table in AllTables)
             {
-                migrationBuilder.Sql($"""ALTER TABLE public."{table}" ENABLE ROW LEVEL SECURITY;""");
+                migrationBuilder.Sql(EnableFor(table));
             }
 
             var policies = new StringBuilder();
@@ -121,109 +119,13 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            var drops = new StringBuilder();
-            foreach (var table in AllTables)
-            {
-                drops.AppendLine($"""
-                    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = '{table}' LOOP
-                        EXECUTE format('DROP POLICY %I ON public.%I', pol.policyname, '{table}');
-                    END LOOP;
-                    """);
-            }
-
-            migrationBuilder.Sql($"""
-                DO $do$
-                DECLARE pol record;
-                BEGIN
-                {drops}
-                END
-                $do$;
-                """);
+            migrationBuilder.Sql(DropAllPolicies(AllTables));
             migrationBuilder.Sql("DROP FUNCTION IF EXISTS app_private.current_app_role();");
             migrationBuilder.Sql("DROP SCHEMA IF EXISTS app_private;");
 
             foreach (var table in AllTables)
             {
-                migrationBuilder.Sql($"""ALTER TABLE public."{table}" DISABLE ROW LEVEL SECURITY;""");
-            }
-        }
-
-        private static void AppendReadPolicy(StringBuilder sql, string table) =>
-            sql.AppendLine($"""
-                CREATE POLICY {table}_select_authenticated ON public."{table}"
-                    FOR SELECT TO authenticated USING (true);
-                """);
-
-        private static void AppendWritePolicies(
-            StringBuilder sql, string table, string predicate, string suffix, string deletePredicate = null)
-        {
-            var deleteSuffix = deletePredicate is null ? suffix : "admin";
-            sql.AppendLine($"""
-                CREATE POLICY {table}_insert_{suffix} ON public."{table}"
-                    FOR INSERT TO authenticated WITH CHECK ({predicate});
-                CREATE POLICY {table}_update_{suffix} ON public."{table}"
-                    FOR UPDATE TO authenticated USING ({predicate}) WITH CHECK ({predicate});
-                CREATE POLICY {table}_delete_{deleteSuffix} ON public."{table}"
-                    FOR DELETE TO authenticated USING ({deletePredicate ?? predicate});
-                """);
-        }
-
-        /// <summary>
-        /// Wraps the statements in a DO block that is a no-op unless the Supabase <c>auth</c> schema and
-        /// <c>authenticated</c> role exist. Each statement is run through EXECUTE so nothing referencing
-        /// <c>auth.uid()</c> / <c>authenticated</c> is even parsed on a plain Postgres.
-        /// </summary>
-        private static string OnSupabaseOnly(string statements)
-        {
-            var body = new StringBuilder();
-            foreach (var statement in SplitStatements(statements))
-            {
-                body.AppendLine($"    EXECUTE $stmt${statement}$stmt$;");
-            }
-
-            return $"""
-                DO $do$
-                BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'auth')
-                       OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-                        RAISE NOTICE 'Supabase auth schema/roles not found - RLS enabled without policies.';
-                        RETURN;
-                    END IF;
-                {body}
-                END
-                $do$;
-                """;
-        }
-
-        /// <summary>Splits on top-level semicolons, keeping the <c>$fn$ … $fn$</c> function body intact.</summary>
-        private static IEnumerable<string> SplitStatements(string sql)
-        {
-            var current = new StringBuilder();
-            var inFunctionBody = false;
-            foreach (var line in sql.Split('\n'))
-            {
-                // An odd number of $fn$ tags on a line opens or closes the function body.
-                if ((line.Split("$fn$").Length - 1) % 2 == 1)
-                {
-                    inFunctionBody = !inFunctionBody;
-                }
-
-                current.AppendLine(line.TrimEnd('\r'));
-                if (!inFunctionBody && line.TrimEnd().EndsWith(';'))
-                {
-                    var statement = current.ToString().Trim().TrimEnd(';');
-                    if (statement.Length > 0)
-                    {
-                        yield return statement;
-                    }
-                    current.Clear();
-                }
-            }
-
-            var tail = current.ToString().Trim().TrimEnd(';');
-            if (tail.Length > 0)
-            {
-                yield return tail;
+                migrationBuilder.Sql(DisableFor(table));
             }
         }
     }

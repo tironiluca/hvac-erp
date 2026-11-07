@@ -19,6 +19,8 @@ public class QuotePdfService(
             .Include(q => q.Client)
             .Include(q => q.Operator)
             .Include(q => q.Products).ThenInclude(p => p.Product)
+            .Include(q => q.Products).ThenInclude(p => p.Incentives).ThenInclude(i => i.IncentiveScheme)
+            .Include(q => q.Incentives).ThenInclude(i => i.IncentiveScheme)
             .Include(q => q.DuctedUnits).ThenInclude(d => d.Outlets)
             .Include(q => q.ServiceItems).ThenInclude(s => s.ServiceItem)
             .Include(q => q.Extras).ThenInclude(e => e.ExtraType)

@@ -19,6 +19,7 @@ public interface IAppDbContext
     DbSet<Product> Products { get; }
     DbSet<ServiceItem> ServiceItems { get; }
     DbSet<ExtraType> ExtraTypes { get; }
+    DbSet<IncentiveScheme> IncentiveSchemes { get; }
     DbSet<Client> Clients { get; }
 
     DbSet<VatOption> VatOptions { get; }
@@ -34,6 +35,8 @@ public interface IAppDbContext
     DbSet<DuctedUnitOutlet> DuctedUnitOutlets { get; }
     DbSet<QuoteServiceItem> QuoteServiceItems { get; }
     DbSet<QuoteExtra> QuoteExtras { get; }
+    DbSet<QuoteIncentive> QuoteIncentives { get; }
+    DbSet<QuoteProductIncentive> QuoteProductIncentives { get; }
     DbSet<QuoteStatusEvent> QuoteStatusEvents { get; }
     DbSet<QuoteAttachment> QuoteAttachments { get; }
 

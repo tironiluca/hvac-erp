@@ -1,3 +1,4 @@
+using HvacErp.Application.Pricing;
 using HvacErp.Domain.Entities;
 using HvacErp.Domain.Enums;
 
@@ -26,6 +27,8 @@ public static class PdfSampleData
         "{\"color\":\"#1a1c1d\",\"width\":5,\"opacity\":1,\"points\":[[150,120],[700,120],[700,360],[880,360],[880,540],[150,540],[150,120]]}" +
         "]}" +
         "]}";
+
+    private static IncentiveScheme Scheme(string code) => IncentiveSchemeDefaults.All().Single(s => s.Code == code);
 
     private static Client SampleClient() => new()
     {
@@ -72,11 +75,12 @@ public static class PdfSampleData
             MachinesPrice = 2400m,
             InstallationPrice = 1200m,
             FinalPrice = 4260m,
-            EneaEligible = true,
-            RaeeEligible = true,
-            SfRequested = true,
-            SfConfirmed = false,
-            SfPrice = 5550m,
+            Incentives =
+            [
+                new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.EnergyTaxDeduction), Amount = 150m },
+                new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.WeeeTakeBack), Amount = 30m },
+                new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.InvoiceDiscount50), Amount = 5550m },
+            ],
             InstallationPositionNotes = "Outdoor unit on the courtyard balcony; indoor units in the living room and main bedroom.",
             FloorPlanSketchJson = SampleFloorPlanSketch,
             Products =
@@ -84,12 +88,14 @@ public static class PdfSampleData
                 new QuoteProduct
                 {
                     Product = Unit("Daikin", "Sensira RXF25C", "-", "-"),
-                    Role = ProductRole.ExternalUnit, Quantity = 1, Price = 900m, DiscountedPrice = 780m, Warranty = true,
+                    Role = ProductRole.ExternalUnit, Quantity = 1, Price = 900m, DiscountedPrice = 780m,
+                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Amount = 72m }],
                 },
                 new QuoteProduct
                 {
                     Product = Unit("Daikin", "Sensira FTXF25C", "A++", "A+"),
-                    Role = ProductRole.InternalUnit, Quantity = 2, Price = 520m, DiscountedPrice = 470m, Warranty = true,
+                    Role = ProductRole.InternalUnit, Quantity = 2, Price = 520m, DiscountedPrice = 470m,
+                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Amount = 83.2m }],
                 },
             ],
             DuctedUnits =

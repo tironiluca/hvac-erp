@@ -30,13 +30,13 @@ describe('QuotesService', () => {
     service.markSurveyDone(1).subscribe();
     service.recall(1, { notes: 'later' }).subscribe();
     service.confirm(1).subscribe();
-    service.toggleSfConfirmation(1).subscribe();
+    service.toggleIncentiveConfirmation(1, 3).subscribe();
 
     for (const [path, body] of [
       ['survey', {}],
       ['recall', { notes: 'later' }],
       ['confirm', {}],
-      ['sf-confirmation', {}],
+      ['incentives/3/confirmation', {}],
     ] as const) {
       const req = http.expectOne(`${base}/1/${path}`);
       expect(req.request.method).toBe('POST');

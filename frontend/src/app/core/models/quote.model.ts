@@ -1,3 +1,4 @@
+import { IncentiveKind } from './lookup.model';
 import { FloorPlanSketch } from './floor-plan-sketch.model';
 
 export type QuoteDepartment = 'Store' | 'Field';
@@ -29,8 +30,30 @@ export interface QuoteProduct {
   quantity: number;
   price: number;
   discountedPrice: number;
-  warranty: boolean;
-  warrantyPrice?: number;
+  incentives: QuoteProductIncentive[];
+}
+
+/** A line-level incentive (e.g. an extended warranty) with its server-computed amount. */
+export interface QuoteProductIncentive {
+  incentiveSchemeId: number;
+  code: string;
+  label: string;
+  amount: number;
+}
+
+/**
+ * A quote-level incentive. `amount` is the entered amount, or for an invoice discount the
+ * grossed-up total; `customerAmount` is what the customer pays under an invoice discount.
+ */
+export interface QuoteIncentive {
+  incentiveSchemeId: number;
+  code: string;
+  label: string;
+  kind: IncentiveKind;
+  amount?: number | null;
+  customerAmount?: number | null;
+  requiresConfirmation: boolean;
+  confirmed: boolean;
 }
 
 export interface QuoteServiceItemLine {
@@ -114,13 +137,7 @@ export interface QuoteDetail {
   installationPrice: number;
   rounding: number;
   finalPrice: number;
-  eneaEligible: boolean;
-  eneaPrice?: number;
-  raeeEligible: boolean;
-  raeePrice?: number;
-  sfRequested: boolean;
-  sfConfirmed: boolean;
-  sfPrice?: number;
+  incentives: QuoteIncentive[];
   installationAddress?: string;
   installationCity?: string;
   installationPositionNotes?: string;
@@ -139,7 +156,14 @@ export interface QuoteProductInput {
   productId: number;
   role: ProductRole;
   quantity: number;
-  warranty: boolean;
+  /** `LineAmount` incentive schemes on this line (e.g. an extended warranty). */
+  incentiveSchemeIds: number[];
+}
+
+/** A quote-level incentive; `amount` applies to `QuoteAmount` schemes (omitted: the scheme default). */
+export interface QuoteIncentiveInput {
+  incentiveSchemeId: number;
+  amount?: number;
 }
 
 export interface DuctedUnitOutletInput {
@@ -177,12 +201,7 @@ export interface UpsertQuoteRequest {
   predisposed: boolean;
   vat: VatOption;
   manualDiscount: number;
-  eneaEligible: boolean;
-  eneaPrice?: number;
-  raeeEligible: boolean;
-  raeePrice?: number;
-  sfRequested: boolean;
-  sfConfirmed: boolean;
+  incentives: QuoteIncentiveInput[];
   installationAddress?: string;
   installationCity?: string;
   installationPositionNotes?: string;

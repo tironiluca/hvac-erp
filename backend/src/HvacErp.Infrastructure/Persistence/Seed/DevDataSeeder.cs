@@ -1,3 +1,4 @@
+using HvacErp.Application.Pricing;
 using Microsoft.EntityFrameworkCore;
 using HvacErp.Application.Pdf;
 using HvacErp.Application.Services;
@@ -24,6 +25,7 @@ public static class DevDataSeeder
         await SeedProductTypesAsync(context, cancellationToken);
         await SeedServiceItemsAsync(context, cancellationToken);
         await SeedExtraTypesAsync(context, cancellationToken);
+        await SeedIncentiveSchemesAsync(context, cancellationToken);
         var priceLists = await SeedPriceListsAsync(context, cancellationToken);
         await SeedDiscountTiersAsync(context, priceLists, cancellationToken);
         await SeedProductsAsync(context, priceLists, cancellationToken);
@@ -320,6 +322,23 @@ public static class DevDataSeeder
         }
 
         context.ExtraTypes.AddRange(missing);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The default incentive schemes (<see cref="IncentiveSchemeDefaults"/>). Idempotent per <c>Code</c>:
+    /// a scheme added there backfills on the next run without touching rates an admin has since edited.
+    /// </summary>
+    private static async Task SeedIncentiveSchemesAsync(AppDbContext context, CancellationToken cancellationToken)
+    {
+        var existingCodes = await context.IncentiveSchemes.Select(s => s.Code).ToListAsync(cancellationToken);
+        var missing = IncentiveSchemeDefaults.All().Where(s => !existingCodes.Contains(s.Code)).ToList();
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        context.IncentiveSchemes.AddRange(missing);
         await context.SaveChangesAsync(cancellationToken);
     }
 

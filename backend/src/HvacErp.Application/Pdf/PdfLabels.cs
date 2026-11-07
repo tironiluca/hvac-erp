@@ -47,12 +47,8 @@ public sealed record PdfLabels
     public required string Remote { get; init; }
     public required string PreparedSystem { get; init; }
     public required string SupplyAndInstallationTotal { get; init; }
-    public required string EneaEligible { get; init; }
-    public required string RaeeIncluded { get; init; }
-    public required string InvoiceDiscount { get; init; }
     public required string InvoiceTotalWithVat { get; init; }
-    public required string WarrantyIncluded { get; init; }
-    public required string EneaPaperworkIncluded { get; init; }
+    /// <summary>Format string; <c>{0}</c> is the share the customer pays, in percent.</summary>
     public required string TotalWithInvoiceDiscount { get; init; }
     public required string Description { get; init; }
     public required string UnitPrice { get; init; }
@@ -117,13 +113,8 @@ public sealed record PdfLabels
         Remote = "Remote",
         PreparedSystem = "Pre-installed piping",
         SupplyAndInstallationTotal = "Supply and installation total",
-        EneaEligible = "Eligible for the ENEA tax deduction",
-        RaeeIncluded = "WEEE collection and disposal included",
-        InvoiceDiscount = "INVOICE DISCOUNT",
         InvoiceTotalWithVat = "Invoice total, VAT and installation included",
-        WarrantyIncluded = "All-inclusive warranty included",
-        EneaPaperworkIncluded = "ENEA paperwork included",
-        TotalWithInvoiceDiscount = "Total payable with the 50% invoice discount",
+        TotalWithInvoiceDiscount = "Total payable with the invoice discount ({0}%)",
         Description = "Description",
         UnitPrice = "Unit price",
         Total = "Total",
@@ -176,13 +167,8 @@ public sealed record PdfLabels
         Remote = "Comando",
         PreparedSystem = "Impianto predisposto",
         SupplyAndInstallationTotal = "Totale fornitura e installazione",
-        EneaEligible = "Idoneo a detrazione fiscale ENEA",
-        RaeeIncluded = "Ritiro e smaltimento RAEE incluso",
-        InvoiceDiscount = "SCONTO IN FATTURA",
         InvoiceTotalWithVat = "Totale fattura IVA ed installazione comprese",
-        WarrantyIncluded = "Garanzia All Inclusive compresa",
-        EneaPaperworkIncluded = "Pratica ENEA compresa",
-        TotalWithInvoiceDiscount = "Totale a pagare con sconto in fattura 50%",
+        TotalWithInvoiceDiscount = "Totale a pagare con sconto in fattura ({0}%)",
         Description = "Descrizione",
         UnitPrice = "Prezzo Un.",
         Total = "Totale",

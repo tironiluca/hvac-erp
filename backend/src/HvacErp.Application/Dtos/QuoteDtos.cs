@@ -46,13 +46,7 @@ public record QuoteDetailDto(
     decimal InstallationPrice,
     decimal Rounding,
     decimal FinalPrice,
-    bool EneaEligible,
-    decimal? EneaPrice,
-    bool RaeeEligible,
-    decimal? RaeePrice,
-    bool SfRequested,
-    bool SfConfirmed,
-    decimal? SfPrice,
+    List<QuoteIncentiveDto> Incentives,
     string? InstallationAddress,
     string? InstallationCity,
     string? InstallationPositionNotes,
@@ -77,8 +71,24 @@ public record QuoteProductDto(
     int Quantity,
     decimal Price,
     decimal DiscountedPrice,
-    bool Warranty,
-    decimal? WarrantyPrice);
+    List<QuoteProductIncentiveDto> Incentives);
+
+/// <summary>
+/// A quote-level incentive. <see cref="Amount"/> is the entered amount, or for an invoice discount
+/// the grossed-up total; <see cref="CustomerAmount"/> is what the customer pays under an invoice discount.
+/// </summary>
+public record QuoteIncentiveDto(
+    int IncentiveSchemeId,
+    string Code,
+    string Label,
+    string Kind,
+    decimal? Amount,
+    decimal? CustomerAmount,
+    bool RequiresConfirmation,
+    bool Confirmed);
+
+/// <summary>A line-level incentive (e.g. an extended warranty) with its computed amount.</summary>
+public record QuoteProductIncentiveDto(int IncentiveSchemeId, string Code, string Label, decimal Amount);
 
 /// <summary>A labour / consumable line on a quote.</summary>
 public record QuoteServiceItemDto(
@@ -125,7 +135,13 @@ public record DuctedUnitDto(
     List<DuctedUnitOutletDto> Outlets);
 
 /// <summary>Product a client is buying as part of a quote. Price fields are always computed server-side from the catalog — never trust client-supplied prices.</summary>
-public record QuoteProductInput(int ProductId, ProductRole Role, int Quantity, bool Warranty);
+public record QuoteProductInput(int ProductId, ProductRole Role, int Quantity, List<int>? IncentiveSchemeIds = null);
+
+/// <summary>
+/// A quote-level incentive sent when saving a quote. <see cref="Amount"/> applies to
+/// <c>QuoteAmount</c> schemes (null takes the scheme default); computed schemes ignore it.
+/// </summary>
+public record QuoteIncentiveInput(int IncentiveSchemeId, decimal? Amount = null);
 
 /// <summary>One ducted indoor unit sent when saving a quote.</summary>
 public record DuctedUnitOutletInput(int Position, string SystemType, int VentCount);
@@ -156,12 +172,6 @@ public record UpsertQuoteRequest(
     bool Predisposed,
     string Vat,
     decimal ManualDiscount,
-    bool EneaEligible,
-    decimal? EneaPrice,
-    bool RaeeEligible,
-    decimal? RaeePrice,
-    bool SfRequested,
-    bool SfConfirmed,
     string? InstallationAddress,
     string? InstallationCity,
     string? InstallationPositionNotes,
@@ -169,7 +179,8 @@ public record UpsertQuoteRequest(
     List<DuctedUnitInput> DuctedUnits,
     List<QuoteServiceItemInput> ServiceItems,
     List<QuoteExtraInput> Extras,
-    JsonElement? FloorPlanSketch = null);
+    JsonElement? FloorPlanSketch = null,
+    List<QuoteIncentiveInput>? Incentives = null);
 
 /// <summary>Notes for a quote recall.</summary>
 public record RecallQuoteRequest(string? Notes);

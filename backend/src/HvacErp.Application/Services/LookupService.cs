@@ -76,6 +76,14 @@ public class LookupService(IAppDbContext context) : ILookupService
             .Select(s => new LookupItemDto(s.Code, s.Label, s.Description, s.Color, s.SortOrder))
             .ToListAsync(cancellationToken);
 
+    public async Task<List<IncentiveSchemeDto>> GetIncentiveSchemesAsync(CancellationToken cancellationToken = default) =>
+        await context.IncentiveSchemes.Where(s => s.Active).OrderBy(s => s.SortOrder).ThenBy(s => s.Label)
+            .Select(s => new IncentiveSchemeDto(
+                s.Id, s.Code, s.Label, s.Description, s.Kind, s.DefaultAmount, s.Percent, s.AddToPrice,
+                s.IncludeInInvoiceDiscountBasis, s.RequiresVat, s.RequiresConfirmation,
+                s.Threshold, s.RateBelowThreshold, s.RateAboveThreshold, s.RoundingStep, s.SortOrder))
+            .ToListAsync(cancellationToken);
+
     public async Task<List<ProductDto>> GetProductsAsync(string? category = null, CancellationToken cancellationToken = default)
     {
         var query = context.Products.Where(p => p.Active);

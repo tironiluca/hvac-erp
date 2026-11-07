@@ -22,6 +22,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
     public DbSet<ExtraType> ExtraTypes => Set<ExtraType>();
+    public DbSet<IncentiveScheme> IncentiveSchemes => Set<IncentiveScheme>();
     public DbSet<Client> Clients => Set<Client>();
 
     public DbSet<VatOption> VatOptions => Set<VatOption>();
@@ -37,6 +38,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<DuctedUnitOutlet> DuctedUnitOutlets => Set<DuctedUnitOutlet>();
     public DbSet<QuoteServiceItem> QuoteServiceItems => Set<QuoteServiceItem>();
     public DbSet<QuoteExtra> QuoteExtras => Set<QuoteExtra>();
+    public DbSet<QuoteIncentive> QuoteIncentives => Set<QuoteIncentive>();
+    public DbSet<QuoteProductIncentive> QuoteProductIncentives => Set<QuoteProductIncentive>();
     public DbSet<QuoteStatusEvent> QuoteStatusEvents => Set<QuoteStatusEvent>();
     public DbSet<QuoteAttachment> QuoteAttachments => Set<QuoteAttachment>();
 

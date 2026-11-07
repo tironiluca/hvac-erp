@@ -53,10 +53,9 @@ public static class PdfTemplateCatalog
         new("quote.serviceItems", "pdfTemplates.section.quote.serviceItems", Columns: LineItemColumns),
         new("quote.pricingSummary", "pdfTemplates.section.quote.pricingSummary", Options:
         [
-            new("showEnea", "pdfTemplates.option.showEnea", DefaultOn: true),
-            new("showRaee", "pdfTemplates.option.showRaee", DefaultOn: true),
-            new("showSfBlock", "pdfTemplates.option.showSfBlock", DefaultOn: true),
-            new("showWarrantyNote", "pdfTemplates.option.showWarrantyNote", DefaultOn: true),
+            // Each scheme's own PDF texts are data (IncentiveScheme.PdfLabel / PdfInvoiceDiscountNote).
+            new("showIncentives", "pdfTemplates.option.showIncentives", DefaultOn: true),
+            new("showInvoiceDiscount", "pdfTemplates.option.showInvoiceDiscount", DefaultOn: true),
         ]),
         new("quote.positionNotes", "pdfTemplates.section.quote.positionNotes"),
         new("quote.floorPlan", "pdfTemplates.section.quote.floorPlan"),

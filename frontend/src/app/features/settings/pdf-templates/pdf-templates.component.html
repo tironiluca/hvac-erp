@@ -106,7 +106,7 @@
 
             <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>{{ 'pdfTemplates.language' | transloco }}</mat-label>
-              <mat-select [value]="def.page.language ?? 'en'" (selectionChange)="setLanguage($event.value)">
+              <mat-select [value]="def.page.language" (selectionChange)="setLanguage($event.value)">
                 @for (lang of pdfLanguages; track lang) {
                   <mat-option [value]="lang">{{ 'pdfTemplates.languages.' + lang | transloco }}</mat-option>
                 }

@@ -447,6 +447,112 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HvacErp.Domain.Entities.IncentiveScheme", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<bool>("AddToPrice")
+                        .HasColumnType("boolean")
+                        .HasColumnName("add_to_price");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<decimal?>("DefaultAmount")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("default_amount");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IncludeInInvoiceDiscountBasis")
+                        .HasColumnType("boolean")
+                        .HasColumnName("include_in_invoice_discount_basis");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("label");
+
+                    b.Property<string>("PdfInvoiceDiscountNote")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("pdf_invoice_discount_note");
+
+                    b.Property<string>("PdfLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("pdf_label");
+
+                    b.Property<decimal?>("Percent")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("percent");
+
+                    b.Property<decimal?>("RateAboveThreshold")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("rate_above_threshold");
+
+                    b.Property<decimal?>("RateBelowThreshold")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("rate_below_threshold");
+
+                    b.Property<bool>("RequiresConfirmation")
+                        .HasColumnType("boolean")
+                        .HasColumnName("requires_confirmation");
+
+                    b.Property<bool>("RequiresVat")
+                        .HasColumnType("boolean")
+                        .HasColumnName("requires_vat");
+
+                    b.Property<decimal?>("RoundingStep")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("rounding_step");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<decimal?>("Threshold")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("threshold");
+
+                    b.HasKey("Id")
+                        .HasName("pk_incentive_schemes");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_incentive_schemes_code");
+
+                    b.ToTable("incentive_schemes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_incentive_schemes_invoice_discount", "kind <> 'InvoiceDiscount' OR (threshold IS NOT NULL AND rate_below_threshold > 0 AND rate_above_threshold > 0 AND rounding_step > 0 AND percent > 0 AND percent <= 100)");
+
+                            t.HasCheckConstraint("ck_incentive_schemes_kind", "kind IN ('QuoteAmount', 'LineAmount', 'InvoiceDiscount')");
+
+                            t.HasCheckConstraint("ck_incentive_schemes_line_amount", "kind <> 'LineAmount' OR default_amount IS NOT NULL OR percent IS NOT NULL");
+                        });
+                });
+
             modelBuilder.Entity("HvacErp.Domain.Entities.InstallationInstaller", b =>
                 {
                     b.Property<int>("ScheduledInstallationId")
@@ -946,14 +1052,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("department");
 
-                    b.Property<bool>("EneaEligible")
-                        .HasColumnType("boolean")
-                        .HasColumnName("enea_eligible");
-
-                    b.Property<decimal?>("EneaPrice")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("enea_price");
-
                     b.Property<decimal>("FinalPrice")
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("final_price");
@@ -1010,14 +1108,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("predisposed");
 
-                    b.Property<bool>("RaeeEligible")
-                        .HasColumnType("boolean")
-                        .HasColumnName("raee_eligible");
-
-                    b.Property<decimal?>("RaeePrice")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("raee_price");
-
                     b.Property<int>("Revision")
                         .HasColumnType("integer")
                         .HasColumnName("revision");
@@ -1025,18 +1115,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("Rounding")
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("rounding");
-
-                    b.Property<bool>("SfConfirmed")
-                        .HasColumnType("boolean")
-                        .HasColumnName("sf_confirmed");
-
-                    b.Property<decimal?>("SfPrice")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("sf_price");
-
-                    b.Property<bool>("SfRequested")
-                        .HasColumnType("boolean")
-                        .HasColumnName("sf_requested");
 
                     b.Property<string>("Vat")
                         .IsRequired()
@@ -1192,6 +1270,44 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteIncentive", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("Amount")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<bool>("Confirmed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("confirmed");
+
+                    b.Property<int>("IncentiveSchemeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("incentive_scheme_id");
+
+                    b.Property<int>("QuoteId")
+                        .HasColumnType("integer")
+                        .HasColumnName("quote_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_quote_incentives");
+
+                    b.HasIndex("IncentiveSchemeId")
+                        .HasDatabaseName("ix_quote_incentives_incentive_scheme_id");
+
+                    b.HasIndex("QuoteId", "IncentiveSchemeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_quote_incentives_quote_id_incentive_scheme_id");
+
+                    b.ToTable("quote_incentives", (string)null);
+                });
+
             modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProduct", b =>
                 {
                     b.Property<int>("Id")
@@ -1227,14 +1343,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("role");
 
-                    b.Property<bool>("Warranty")
-                        .HasColumnType("boolean")
-                        .HasColumnName("warranty");
-
-                    b.Property<decimal?>("WarrantyPrice")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("warranty_price");
-
                     b.HasKey("Id")
                         .HasName("pk_quote_products");
 
@@ -1248,6 +1356,40 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_quote_products_quantity_positive", "quantity >= 1");
                         });
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProductIncentive", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<int>("IncentiveSchemeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("incentive_scheme_id");
+
+                    b.Property<int>("QuoteProductId")
+                        .HasColumnType("integer")
+                        .HasColumnName("quote_product_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_quote_product_incentives");
+
+                    b.HasIndex("IncentiveSchemeId")
+                        .HasDatabaseName("ix_quote_product_incentives_incentive_scheme_id");
+
+                    b.HasIndex("QuoteProductId", "IncentiveSchemeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_quote_product_incentives_quote_product_id_incentive_scheme_");
+
+                    b.ToTable("quote_product_incentives", (string)null);
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.QuoteServiceItem", b =>
@@ -2011,6 +2153,27 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Navigation("Quote");
                 });
 
+            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteIncentive", b =>
+                {
+                    b.HasOne("HvacErp.Domain.Entities.IncentiveScheme", "IncentiveScheme")
+                        .WithMany()
+                        .HasForeignKey("IncentiveSchemeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quote_incentives_incentive_schemes_incentive_scheme_id");
+
+                    b.HasOne("HvacErp.Domain.Entities.Quote", "Quote")
+                        .WithMany("Incentives")
+                        .HasForeignKey("QuoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_quote_incentives_quotes_quote_id");
+
+                    b.Navigation("IncentiveScheme");
+
+                    b.Navigation("Quote");
+                });
+
             modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProduct", b =>
                 {
                     b.HasOne("HvacErp.Domain.Entities.Product", "Product")
@@ -2030,6 +2193,27 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("Quote");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProductIncentive", b =>
+                {
+                    b.HasOne("HvacErp.Domain.Entities.IncentiveScheme", "IncentiveScheme")
+                        .WithMany()
+                        .HasForeignKey("IncentiveSchemeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quote_product_incentives_incentive_schemes_incentive_scheme");
+
+                    b.HasOne("HvacErp.Domain.Entities.QuoteProduct", "QuoteProduct")
+                        .WithMany("Incentives")
+                        .HasForeignKey("QuoteProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_quote_product_incentives_quote_products_quote_product_id");
+
+                    b.Navigation("IncentiveScheme");
+
+                    b.Navigation("QuoteProduct");
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.QuoteServiceItem", b =>
@@ -2223,6 +2407,8 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
 
                     b.Navigation("FGasRecords");
 
+                    b.Navigation("Incentives");
+
                     b.Navigation("Products");
 
                     b.Navigation("Repairs");
@@ -2232,6 +2418,11 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Navigation("ServiceItems");
 
                     b.Navigation("StatusEvents");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProduct", b =>
+                {
+                    b.Navigation("Incentives");
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.Repair", b =>

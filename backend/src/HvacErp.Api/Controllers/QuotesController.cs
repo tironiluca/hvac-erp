@@ -65,12 +65,16 @@ public class QuotesController(IQuoteService quotes, IQuotePdfService pdf, IQuote
         return NoContent();
     }
 
-    /// <summary>Flips the 'Sconto in Fattura' acceptance flag; allowed even on a confirmed quote. 400 when SF was not requested.</summary>
-    [HttpPost("{id:int}/sf-confirmation")]
+    /// <summary>
+    /// Flips the customer's acceptance of an incentive that needs it (e.g. an invoice discount);
+    /// allowed even on a confirmed quote. 404 when the quote does not carry the scheme, 400 when the
+    /// scheme needs no confirmation.
+    /// </summary>
+    [HttpPost("{id:int}/incentives/{schemeId:int}/confirmation")]
     [Authorize(Policy = Policies.SalesOrAdmin)]
-    public async Task<IActionResult> ToggleSfConfirmation(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> ToggleIncentiveConfirmation(int id, int schemeId, CancellationToken cancellationToken)
     {
-        await quotes.ToggleSfConfirmationAsync(id, cancellationToken);
+        await quotes.ToggleIncentiveConfirmationAsync(id, schemeId, cancellationToken);
         return NoContent();
     }
 

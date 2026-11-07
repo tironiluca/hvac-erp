@@ -1,3 +1,4 @@
+using HvacErp.Application.Pricing;
 using Microsoft.EntityFrameworkCore;
 using HvacErp.Application.Services;
 using HvacErp.Domain.Entities;
@@ -37,6 +38,9 @@ public static class DemoDataSeeder
     // Public base URL of the demo PDFs / photos (`<storage>/demo`), set per run from configuration
     // so no deployment's storage host is baked into the seed. A one-shot CLI command, like Rng.
     private static string DemoAssetBaseUrl = "https://example.com/demo";
+
+    // The incentive schemes by code, loaded per run (seeded by DevDataSeeder); a one-shot CLI command, like Rng.
+    private static Dictionary<string, IncentiveScheme> Schemes = [];
 
     /// <summary>Adds the demo dataset; safe to run repeatedly.</summary>
     /// <param name="context">The database to seed.</param>
@@ -78,6 +82,7 @@ public static class DemoDataSeeder
         // Ad-hoc line items: every uncoded row (the coded ones are priced by the engine).
         var lineServiceItems = serviceItems.Where(s => s.Code == null).ToList();
         var extraTypes = await context.ExtraTypes.Where(e => e.Active).ToListAsync(cancellationToken);
+        Schemes = await context.IncentiveSchemes.ToDictionaryAsync(s => s.Code, cancellationToken);
 
         var clients = BuildClients(sources);
         context.Clients.AddRange(clients);
@@ -488,22 +493,28 @@ public static class DemoDataSeeder
         quote.Rounding = Round2(finalRounded - raw);
         quote.FinalPrice = finalRounded;
 
-        if (Chance(0.30))
+        decimal discountBasisExtra = 0m;
+        if (Chance(0.30) && Schemes.TryGetValue(IncentiveSchemeDefaults.EnergyTaxDeduction, out var deduction))
         {
-            quote.EneaEligible = true;
-            quote.EneaPrice = Round2(finalRounded * 0.5m);
+            var fee = Rng.Next(1, 4) * 50m;
+            quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = deduction.Id, Amount = fee });
+            if (deduction.IncludeInInvoiceDiscountBasis)
+            {
+                discountBasisExtra += fee;
+            }
         }
-        if (Chance(0.20))
+        if (Chance(0.20) && Schemes.TryGetValue(IncentiveSchemeDefaults.WeeeTakeBack, out var weee))
         {
-            quote.RaeeEligible = true;
-            quote.RaeePrice = Round2(Rng.Next(1, 4) * 15m);
+            quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = weee.Id, Amount = Round2(Rng.Next(1, 4) * 15m) });
         }
-        if (vat != VatCodes.Exempt && Chance(0.15))
+        if (vat != VatCodes.Exempt && Chance(0.15) && Schemes.TryGetValue(IncentiveSchemeDefaults.InvoiceDiscount50, out var discount))
         {
-            quote.SfRequested = true;
-            var sfBase = finalRounded < 2000m ? finalRounded * 1.3m : finalRounded * 1.2m;
-            quote.SfPrice = Math.Ceiling(sfBase / 50m) * 50m;
-            quote.SfConfirmed = status == QuoteStatusCodes.Confirmed && Chance(0.6);
+            quote.Incentives.Add(new QuoteIncentive
+            {
+                IncentiveSchemeId = discount.Id,
+                Amount = QuotePricingService.InvoiceDiscountTotal(discount, finalRounded + discountBasisExtra),
+                Confirmed = status == QuoteStatusCodes.Confirmed && Chance(0.6),
+            });
         }
 
         if (Chance(0.15))
@@ -599,7 +610,9 @@ public static class DemoDataSeeder
                 {
                     ProductId = p.ProductId, Role = p.Role, Quantity = p.Quantity,
                     Price = p.Price, DiscountedPrice = p.DiscountedPrice,
-                    Warranty = p.Warranty, WarrantyPrice = p.WarrantyPrice,
+                    Incentives = p.Incentives
+                        .Select(i => new QuoteProductIncentive { IncentiveSchemeId = i.IncentiveSchemeId, Amount = i.Amount })
+                        .ToList(),
                 });
             }
             foreach (var s in parent.ServiceItems)
@@ -621,17 +634,24 @@ public static class DemoDataSeeder
     private static QuoteProduct NewQuoteProduct(Product product, ProductRole role, int qty)
     {
         var discount = role == ProductRole.ExternalUnit ? 0.05m : Pick(new[] { 0.05m, 0.10m, 0.12m, 0.15m });
-        var warranty = role == ProductRole.InternalUnit && Chance(0.2);
-        return new QuoteProduct
+        var line = new QuoteProduct
         {
             ProductId = product.Id,
             Role = role,
             Quantity = qty,
             Price = product.Price,
             DiscountedPrice = Round2(product.Price * (1m - discount)),
-            Warranty = warranty,
-            WarrantyPrice = warranty ? Round2(product.Price * 0.08m) : null,
         };
+        if (role == ProductRole.InternalUnit && Chance(0.2)
+            && Schemes.TryGetValue(IncentiveSchemeDefaults.AllInclusiveWarranty, out var warranty))
+        {
+            line.Incentives.Add(new QuoteProductIncentive
+            {
+                IncentiveSchemeId = warranty.Id,
+                Amount = QuotePricingService.LineAmount(warranty, product.Price, qty),
+            });
+        }
+        return line;
     }
 
     private static decimal DiscountedLine(Product product, int qty) =>

@@ -69,22 +69,6 @@
 
             <mat-checkbox formControlName="predisposed">{{ 'quotes.predisposed' | transloco }}</mat-checkbox>
 
-            <mat-checkbox formControlName="eneaEligible">{{ 'quotes.eneaEligible' | transloco }}</mat-checkbox>
-            @if (formValue().eneaEligible) {
-              <mat-form-field appearance="outline">
-                <mat-label>{{ 'quotes.eneaPrice' | transloco }}</mat-label>
-                <input matInput type="number" formControlName="eneaPrice" />
-              </mat-form-field>
-            }
-
-            <mat-checkbox formControlName="raeeEligible">{{ 'quotes.raeeEligible' | transloco }}</mat-checkbox>
-            @if (formValue().raeeEligible) {
-              <mat-form-field appearance="outline">
-                <mat-label>{{ 'quotes.raeePrice' | transloco }}</mat-label>
-                <input matInput type="number" formControlName="raeePrice" />
-              </mat-form-field>
-            }
-
             <p class="quote-form__section-hint span-2">{{ 'quotes.installationSiteHint' | transloco }}</p>
             <mat-form-field appearance="outline">
               <mat-label>{{ 'quotes.installationAddress' | transloco }}</mat-label>
@@ -122,7 +106,15 @@
               <input matInput type="number" formControlName="quantity" />
             </mat-form-field>
 
-            <mat-checkbox formControlName="warranty">{{ 'quotes.warranty' | transloco }}</mat-checkbox>
+            @for (scheme of lineSchemes(); track scheme.id) {
+              <mat-checkbox
+                [checked]="lineHasScheme(form.controls.externalUnit, scheme.id)"
+                [disabled]="form.controls.externalUnit.disabled"
+                (change)="setLineScheme(form.controls.externalUnit, scheme.id, $event.checked)"
+                [matTooltip]="scheme.description ?? ''"
+                >{{ scheme.label }}</mat-checkbox
+              >
+            }
           </div>
 
           <div class="step-actions">
@@ -154,7 +146,15 @@
                   <mat-label>{{ 'quotes.quantity' | transloco }}</mat-label>
                   <input matInput type="number" formControlName="quantity" />
                 </mat-form-field>
-                <mat-checkbox formControlName="warranty">{{ 'quotes.warranty' | transloco }}</mat-checkbox>
+                @for (scheme of lineSchemes(); track scheme.id) {
+                  <mat-checkbox
+                    [checked]="lineHasScheme(control, scheme.id)"
+                    [disabled]="control.disabled"
+                    (change)="setLineScheme(control, scheme.id, $event.checked)"
+                    [matTooltip]="scheme.description ?? ''"
+                    >{{ scheme.label }}</mat-checkbox
+                  >
+                }
                 <button mat-icon-button type="button" (click)="removeInternalUnit(i)">
                   <mat-icon>delete</mat-icon>
                 </button>
@@ -298,12 +298,31 @@
                   <input matInput type="number" formControlName="manualDiscount" />
                 </mat-form-field>
 
-                <mat-checkbox formControlName="sfRequested" class="span-2">{{ 'quotes.sfRequested' | transloco }}</mat-checkbox>
-                @if (formValue().sfRequested && formValue().vat === 'Exempt') {
-                  <p class="quote-form__section-hint span-2">{{ 'quotes.sfNeedsVat' | transloco }}</p>
-                }
               </div>
             </mat-card>
+
+            @if (quoteSchemes().length) {
+              <mat-card class="hvac-card" appearance="outlined">
+                <h3 class="hvac-card__title">{{ 'quotes.incentives' | transloco }}</h3>
+                <div formArrayName="incentives" class="repeatable-list">
+                  @for (control of form.controls.incentives.controls; track control; let i = $index) {
+                    @let scheme = quoteSchemes()[i];
+                    <div [formGroupName]="i" class="repeatable-row">
+                      <mat-checkbox formControlName="selected" [matTooltip]="scheme.description ?? ''">{{ scheme.label }}</mat-checkbox>
+                      @if (scheme.kind === 'QuoteAmount' && control.value.selected) {
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>{{ 'quotes.incentiveAmount' | transloco }}</mat-label>
+                          <input matInput type="number" min="0" formControlName="amount" [placeholder]="scheme.defaultAmount?.toString() ?? ''" />
+                        </mat-form-field>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (selectedInvoiceDiscount()?.requiresVat && formValue().vat === 'Exempt') {
+                  <p class="quote-form__section-hint">{{ 'quotes.invoiceDiscountNeedsVat' | transloco }}</p>
+                }
+              </mat-card>
+            }
 
             <mat-card class="hvac-card" appearance="outlined">
               <h3 class="hvac-card__title">{{ 'quotes.serviceItems' | transloco }}</h3>
@@ -369,25 +388,27 @@
               <span>{{ (quote()?.finalPrice ?? estimate().finalPrice) | number: '1.2-2' }} €</span>
             </div>
 
-            @if (quote()?.raeeEligible ?? formValue().raeeEligible) {
+            @for (row of summaryAmounts(); track row.label) {
               <div class="summary-row summary-row--muted">
-                <span>{{ 'quotes.raeePriceSummary' | transloco }}</span>
-                <span>{{ (quote()?.raeePrice ?? formValue().raeePrice ?? 0) | number: '1.2-2' }} €</span>
+                <span>{{ row.label }}</span>
+                <span>{{ row.amount | number: '1.2-2' }} €</span>
               </div>
             }
 
-            @if (quote()?.sfRequested && quote()?.sfPrice != null) {
+            @if (summaryInvoiceDiscount(); as discount) {
               <div class="summary-row">
-                <span>{{ 'quotes.sfGrossTotal' | transloco }}</span>
-                <span class="summary-row__strike">{{ quote()!.sfPrice! | number: '1.2-2' }} €</span>
+                <span>{{ 'quotes.invoiceDiscountGrossTotal' | transloco: { label: discount.label } }}</span>
+                <span class="summary-row__strike">{{ discount.grossedTotal | number: '1.2-2' }} €</span>
               </div>
               <div class="summary-row summary-row--total">
-                <span>{{ 'quotes.sfToPay' | transloco }}</span>
-                <span>{{ quote()!.sfPrice! / 2 | number: '1.2-2' }} €</span>
+                <span>{{ 'quotes.invoiceDiscountToPay' | transloco }}</span>
+                <span>{{ discount.customerAmount | number: '1.2-2' }} €</span>
               </div>
-              <p class="summary-card__hint">
-                {{ (quote()!.sfConfirmed ? 'quotes.sfConfirmedYes' : 'quotes.sfConfirmedNo') | transloco }}
-              </p>
+              @if (discount.confirmed !== null) {
+                <p class="summary-card__hint">
+                  {{ (discount.confirmed ? 'quotes.incentiveConfirmedYes' : 'quotes.incentiveConfirmedNo') | transloco }}
+                </p>
+              }
             }
           </div>
 
@@ -423,11 +444,18 @@
             <mat-icon>check_circle</mat-icon>
             {{ 'quotes.confirm' | transloco }}
           </button>
-          @if (q.sfRequested) {
-            <button mat-stroked-button type="button" [disabled]="togglingSf()" (click)="toggleSfConfirmation()">
-              <mat-icon>{{ q.sfConfirmed ? 'undo' : 'verified' }}</mat-icon>
-              {{ (q.sfConfirmed ? 'quotes.revokeSfConfirmation' : 'quotes.confirmSf') | transloco }}
-            </button>
+          @for (incentive of q.incentives; track incentive.incentiveSchemeId) {
+            @if (incentive.requiresConfirmation) {
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="togglingIncentive() !== null"
+                (click)="toggleIncentiveConfirmation(incentive.incentiveSchemeId)"
+              >
+                <mat-icon>{{ incentive.confirmed ? 'undo' : 'verified' }}</mat-icon>
+                {{ (incentive.confirmed ? 'quotes.revokeIncentiveConfirmation' : 'quotes.confirmIncentive') | transloco: { label: incentive.label } }}
+              </button>
+            }
           }
           <button mat-stroked-button type="button" (click)="generatePdf()" [disabled]="generatingPdf()">
             @if (generatingPdf()) {

@@ -5,6 +5,7 @@ import { environment } from '../../../environments/environment';
 import {
   ClientSource,
   ExtraType,
+  IncentiveScheme,
   Installer,
   LookupItem,
   Operator,
@@ -50,6 +51,11 @@ export class LookupsService {
   /** Extra-work line types with default prices. */
   getExtraTypes(): Observable<ExtraType[]> {
     return this.http.get<ExtraType[]>(`${this.baseUrl}/extra-types`);
+  }
+
+  /** Active incentive schemes with their calculation parameters, in display order. */
+  getIncentiveSchemes(): Observable<IncentiveScheme[]> {
+    return this.http.get<IncentiveScheme[]>(`${this.baseUrl}/incentive-schemes`);
   }
 
   /** Product price lists. */

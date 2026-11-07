@@ -17,6 +17,8 @@ public interface ILookupService
     Task<List<ServiceItemDto>> GetServiceItemsAsync(CancellationToken cancellationToken = default);
     /// <summary>Active extra-work types in display order.</summary>
     Task<List<ExtraTypeDto>> GetExtraTypesAsync(CancellationToken cancellationToken = default);
+    /// <summary>Active incentive schemes (tax incentives, fees, invoice discounts, line options) in display order.</summary>
+    Task<List<IncentiveSchemeDto>> GetIncentiveSchemesAsync(CancellationToken cancellationToken = default);
     /// <summary>Product price lists.</summary>
     Task<List<ProductPriceListDto>> GetProductPriceListsAsync(CancellationToken cancellationToken = default);
 

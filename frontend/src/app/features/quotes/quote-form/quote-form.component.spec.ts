@@ -7,7 +7,7 @@ import { ClientsService } from '../../../core/services/clients.service';
 import { LookupsService } from '../../../core/services/lookups.service';
 import { QuotesService } from '../../../core/services/quotes.service';
 import { SnackbarService } from '../../../core/services/snackbar.service';
-import { Product, VatOptionLookup } from '../../../core/models/lookup.model';
+import { IncentiveScheme, Product, VatOptionLookup } from '../../../core/models/lookup.model';
 import { QuoteDetail } from '../../../core/models/quote.model';
 import { QuoteFormComponent } from './quote-form.component';
 
@@ -18,14 +18,20 @@ const vatOptions: VatOptionLookup[] = [
   { code: 'Exempt', label: 'Esente', sortOrder: 2, blendShape: 'None', machinesMultiplier: 1, installationMultiplier: 1, pdfLabel: '' },
 ];
 const client = { id: 9, code: 'CP0009', fullName: 'Mario Rossi' };
+const schemeBase = { description: null, addToPrice: false, includeInInvoiceDiscountBasis: false, requiresVat: false, requiresConfirmation: false };
+const schemes: IncentiveScheme[] = [
+  { ...schemeBase, id: 10, code: 'DEDUCTION', label: 'Deduction', kind: 'QuoteAmount', defaultAmount: 120, sortOrder: 10 },
+  { ...schemeBase, id: 30, code: 'DISCOUNT', label: 'Invoice discount', kind: 'InvoiceDiscount', percent: 50, threshold: 2000, rateBelowThreshold: 1.3, rateAboveThreshold: 1.2, roundingStep: 50, requiresVat: true, requiresConfirmation: true, sortOrder: 30 },
+  { ...schemeBase, id: 40, code: 'WARRANTY', label: 'Warranty', kind: 'LineAmount', percent: 8, addToPrice: true, sortOrder: 40 },
+];
 
 function detail(overrides: Partial<QuoteDetail> = {}): QuoteDetail {
   return {
     id: 5, number: 12, version: 1, revision: 0, clientId: 9, clientName: 'Mario Rossi', department: 'Store',
     createdAt: '2026-01-01T00:00:00Z', currentStatus: 'Draft', surveyDone: false, recalled: false, confirmed: false,
     predisposed: true, vat: 'Exempt', manualDiscount: 0, machinesPrice: 1000, installationPrice: 0, rounding: 0,
-    finalPrice: 1000, eneaEligible: false, raeeEligible: false, sfRequested: false, sfConfirmed: false,
-    products: [{ id: 1, productId: 1, brand: 'Daikin', model: 'EXT', role: 'ExternalUnit', quantity: 1, price: 1000, discountedPrice: 1000, warranty: false }],
+    finalPrice: 1000, incentives: [],
+    products: [{ id: 1, productId: 1, brand: 'Daikin', model: 'EXT', role: 'ExternalUnit', quantity: 1, price: 1000, discountedPrice: 1000, incentives: [] }],
     ductedUnits: [], serviceItems: [], extras: [], statusEvents: [], attachments: [],
     ...overrides,
   } as QuoteDetail;
@@ -58,6 +64,7 @@ describe('QuoteFormComponent', () => {
             getQuoteDepartments: () => of([]),
             getDuctSystemTypes: () => of([]),
             getExtraTypes: () => of([]),
+            getIncentiveSchemes: () => of(schemes),
           },
         },
       ],
@@ -100,7 +107,8 @@ describe('QuoteFormComponent', () => {
     expect(quotes.create).toHaveBeenCalledTimes(1);
     const request = quotes.create.mock.calls[0][0];
     expect(request.clientId).toBe(9);
-    expect(request.products).toEqual([{ productId: 1, role: 'ExternalUnit', quantity: 1, warranty: false }]);
+    expect(request.products).toEqual([{ productId: 1, role: 'ExternalUnit', quantity: 1, incentiveSchemeIds: [] }]);
+    expect(request.incentives).toEqual([]);
     expect(navigate).toHaveBeenCalledWith(['/quotes', 77], { replaceUrl: true });
   });
 
@@ -110,6 +118,41 @@ describe('QuoteFormComponent', () => {
     expect(quotes.getById).toHaveBeenCalledWith(5);
     expect(component['form'].controls.externalUnit.controls.productId.value).toBe(1);
     expect(component['form'].disabled).toBe(false);
+  });
+
+  it('sends selected schemes: quote amounts with their amount, line schemes on their line', async () => {
+    const component = setup();
+    component['clientControl'].setValue(client as never);
+    const unit = component['form'].controls.externalUnit;
+    unit.controls.productId.setValue(1);
+    component['setLineScheme'](unit, 40, true);
+    const [deduction, discount] = component['form'].controls.incentives.controls;
+    deduction.patchValue({ selected: true, amount: 90 });
+    discount.patchValue({ selected: true, amount: 5 }); // ignored: computed by the server
+
+    await component['submit']();
+
+    const request = quotes.create.mock.calls[0][0];
+    expect(request.products[0].incentiveSchemeIds).toEqual([40]);
+    expect(request.incentives).toEqual([
+      { incentiveSchemeId: 10, amount: 90 },
+      { incentiveSchemeId: 30, amount: undefined },
+    ]);
+  });
+
+  it('restores a saved quote\'s schemes into the form', () => {
+    const component = setup(
+      { id: '5' },
+      detail({
+        incentives: [{ incentiveSchemeId: 10, code: 'DEDUCTION', label: 'Deduction', kind: 'QuoteAmount', amount: 150, requiresConfirmation: false, confirmed: false }],
+        products: [{ id: 1, productId: 1, brand: 'Daikin', model: 'EXT', role: 'ExternalUnit', quantity: 1, price: 1000, discountedPrice: 1000, incentives: [{ incentiveSchemeId: 40, code: 'WARRANTY', label: 'Warranty', amount: 80 }] }],
+      }),
+    );
+
+    const [deduction, discount] = component['form'].controls.incentives.getRawValue();
+    expect(deduction).toEqual({ incentiveSchemeId: 10, selected: true, amount: 150 });
+    expect(discount.selected).toBe(false);
+    expect(component['form'].controls.externalUnit.controls.incentiveSchemeIds.value).toEqual([40]);
   });
 
   it('locks the form when editing a confirmed quote', () => {

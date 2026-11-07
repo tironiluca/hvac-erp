@@ -1,4 +1,4 @@
-import { DiscountTier, ExtraType, Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
+import { DiscountTier, ExtraType, IncentiveScheme, Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
 import { DuctSystemType } from '../../core/models/quote.model';
 
 /**
@@ -11,12 +11,22 @@ export interface PriceEstimate {
   machinesPrice: number;
   installationPrice: number;
   finalPrice: number;
+  /** The selected invoice-discount scheme's grossed-up total and the customer's share; absent when none applies. */
+  invoiceDiscount?: { schemeId: number; grossedTotal: number; customerAmount: number };
   warning?: 'gasMismatch' | 'powerExceeded';
 }
 
 export interface EstimateUnitLine {
   productId: number | null;
   quantity: number;
+  /** `LineAmount` incentive schemes on the line. */
+  incentiveSchemeIds?: number[];
+}
+
+export interface EstimateIncentiveLine {
+  incentiveSchemeId: number;
+  selected: boolean;
+  amount: number | null;
 }
 
 export interface EstimateDuctedUnit {
@@ -46,6 +56,7 @@ export interface EstimateFormValue {
   ductedUnits: EstimateDuctedUnit[];
   serviceItems: { serviceItemId: number | null; quantity: number }[];
   extras: EstimateExtraLine[];
+  incentives?: EstimateIncentiveLine[];
 }
 
 export interface EstimateCatalog {
@@ -53,6 +64,7 @@ export interface EstimateCatalog {
   serviceItems: readonly ServiceItem[];
   extraTypes: readonly ExtraType[];
   vatOptions: readonly VatOptionLookup[];
+  incentiveSchemes?: readonly IncentiveScheme[];
 }
 
 /** Base installation service-item code for N internal units (mirrors `InstallationCostItems.BaseSystemPriceFor`). */
@@ -95,14 +107,37 @@ export function applyDiscountLadder(listPrice: number, tiers: readonly DiscountT
 
 const isHydronic = (product: Product) => product.isHydronic === true;
 
-/** Net unit price: hydronic / prepared / not-prepared list price, then the discount ladder. */
-export function unitPrice(product: Product, predisposed: boolean): number {
-  const listPrice = isHydronic(product)
+/** List unit price: hydronic / prepared / not-prepared. */
+export function listUnitPrice(product: Product, predisposed: boolean): number {
+  return isHydronic(product)
     ? (product.hydronicPrice ?? product.price)
     : predisposed
       ? (product.pricePrepared ?? product.price)
       : (product.priceNotPrepared ?? product.price);
-  return applyDiscountLadder(listPrice, product.discountTiers);
+}
+
+/** Net unit price: the list price through the discount ladder. */
+export function unitPrice(product: Product, predisposed: boolean): number {
+  return applyDiscountLadder(listUnitPrice(product, predisposed), product.discountTiers);
+}
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/** `LineAmount` scheme (mirrors `QuotePricingService.LineAmount`): fixed per unit, else % of the list unit price per unit. */
+export function lineSchemeAmount(scheme: IncentiveScheme, listUnit: number, quantity: number): number {
+  return round2((scheme.defaultAmount ?? (listUnit * (scheme.percent ?? 0)) / 100) * quantity);
+}
+
+/**
+ * `InvoiceDiscount` scheme (mirrors `QuotePricingService.InvoiceDiscountTotal`): the basis grossed up
+ * by the below/above-threshold rate, then raised to the next rounding step (a full step even on an
+ * exact multiple, as legacy did).
+ */
+export function invoiceDiscountTotal(scheme: IncentiveScheme, basis: number): number {
+  const rate = basis < (scheme.threshold ?? 0) ? (scheme.rateBelowThreshold ?? 1) : (scheme.rateAboveThreshold ?? 1);
+  const grossed = basis * rate;
+  const step = scheme.roundingStep ?? 1;
+  return grossed + (step - (grossed % step));
 }
 
 /** Per-outlet ducted price; the ×1.1 is embedded VAT, so callers add it after the blend. */
@@ -117,6 +152,10 @@ export function ductedOutletPrice(systemType: DuctSystemType, ventCount: number)
   }
 }
 
+function resolveVat(vatCode: string, vatOptions: readonly VatOptionLookup[]) {
+  return vatOptions.find((v) => v.code === vatCode) ?? FALLBACK_VAT[vatCode];
+}
+
 /** Blends VAT into machines + installation per the option's shape (mirrors the server switch). */
 export function blendVat(
   vatCode: string,
@@ -124,7 +163,7 @@ export function blendVat(
   installationPrice: number,
   vatOptions: readonly VatOptionLookup[],
 ): number {
-  const vat = vatOptions.find((v) => v.code === vatCode) ?? FALLBACK_VAT[vatCode];
+  const vat = resolveVat(vatCode, vatOptions);
   switch (vat?.blendShape) {
     case 'Split':
       return installationPrice * vat.installationMultiplier + (machinesPrice - installationPrice) * vat.machinesMultiplier;
@@ -139,16 +178,19 @@ export function estimateQuotePrice(raw: EstimateFormValue, catalog: EstimateCata
   const findProduct = (id: number | null) => catalog.products.find((p) => p.id === id);
   const findServicePrice = (code: string) => catalog.serviceItems.find((s) => s.code === code)?.price ?? 0;
   const extraTypeById = new Map(catalog.extraTypes.map((t) => [t.id, t]));
+  const schemeById = new Map((catalog.incentiveSchemes ?? []).map((s) => [s.id, s]));
 
   let machinesPrice = 0;
-  const externalProduct = findProduct(raw.externalUnit.productId);
-  if (externalProduct) {
-    machinesPrice += unitPrice(externalProduct, raw.predisposed) * raw.externalUnit.quantity;
-  }
-  for (const line of raw.internalUnits) {
+  for (const line of [raw.externalUnit, ...raw.internalUnits]) {
     const product = findProduct(line.productId);
-    if (product) {
-      machinesPrice += unitPrice(product, raw.predisposed) * line.quantity;
+    if (!product) continue;
+    machinesPrice += unitPrice(product, raw.predisposed) * line.quantity;
+    // Line schemes (e.g. a warranty) charged on the machines side, before the VAT blend.
+    for (const schemeId of line.incentiveSchemeIds ?? []) {
+      const scheme = schemeById.get(schemeId);
+      if (scheme?.kind === 'LineAmount' && scheme.addToPrice) {
+        machinesPrice += lineSchemeAmount(scheme, listUnitPrice(product, raw.predisposed), line.quantity);
+      }
     }
   }
 
@@ -200,10 +242,36 @@ export function estimateQuotePrice(raw: EstimateFormValue, catalog: EstimateCata
     }
   }
 
-  const blended = blendVat(raw.vat, machinesPrice, installationPrice, catalog.vatOptions);
-  const finalPrice = blended + extrasFlat + ductedOutletsFlat + (raw.manualDiscount ?? 0);
+  const selectedIncentives = (raw.incentives ?? [])
+    .filter((i) => i.selected)
+    .map((i) => ({ line: i, scheme: schemeById.get(i.incentiveSchemeId) }))
+    .filter((i): i is { line: EstimateIncentiveLine; scheme: IncentiveScheme } => !!i.scheme);
+  const quoteAmount = (i: { line: EstimateIncentiveLine; scheme: IncentiveScheme }) => i.line.amount ?? i.scheme.defaultAmount ?? 0;
+  const quoteAmounts = selectedIncentives.filter((i) => i.scheme.kind === 'QuoteAmount');
 
-  return { machinesPrice, installationPrice, finalPrice, warning: compatibilityWarning(raw, findProduct) };
+  const blended = blendVat(raw.vat, machinesPrice, installationPrice, catalog.vatOptions);
+  const charged = quoteAmounts.filter((i) => i.scheme.addToPrice).reduce((sum, i) => sum + quoteAmount(i), 0);
+  const finalPrice = blended + extrasFlat + ductedOutletsFlat + charged + (raw.manualDiscount ?? 0);
+
+  // Invoice discount: basis = final price with the manual discount added back, plus the quote
+  // amounts flagged into the basis (mirrors QuotePricingService.PriceInvoiceDiscounts).
+  let invoiceDiscount: PriceEstimate['invoiceDiscount'];
+  const discount = selectedIncentives.find((i) => i.scheme.kind === 'InvoiceDiscount');
+  const vatExempt = resolveVat(raw.vat, catalog.vatOptions)?.blendShape === 'None';
+  if (discount && !(discount.scheme.requiresVat && vatExempt)) {
+    const basis =
+      finalPrice -
+      (raw.manualDiscount ?? 0) +
+      quoteAmounts.filter((i) => i.scheme.includeInInvoiceDiscountBasis).reduce((sum, i) => sum + quoteAmount(i), 0);
+    const grossedTotal = invoiceDiscountTotal(discount.scheme, basis);
+    invoiceDiscount = {
+      schemeId: discount.scheme.id,
+      grossedTotal,
+      customerAmount: round2((grossedTotal * (discount.scheme.percent ?? 100)) / 100),
+    };
+  }
+
+  return { machinesPrice, installationPrice, finalPrice, invoiceDiscount, warning: compatibilityWarning(raw, findProduct) };
 }
 
 /** Mirrors `QuotePricingService.ValidateCompatibility` as a soft warning instead of a 400. */

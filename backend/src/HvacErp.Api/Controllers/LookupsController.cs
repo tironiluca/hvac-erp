@@ -41,6 +41,11 @@ public class LookupsController(ILookupService lookups) : ControllerBase
     public async Task<ActionResult<List<ExtraTypeDto>>> GetExtraTypes(CancellationToken cancellationToken) =>
         Ok(await lookups.GetExtraTypesAsync(cancellationToken));
 
+    /// <summary>Incentive schemes a quote (or a quote line) can carry, with their calculation parameters.</summary>
+    [HttpGet("incentive-schemes")]
+    public async Task<ActionResult<List<IncentiveSchemeDto>>> GetIncentiveSchemes(CancellationToken cancellationToken) =>
+        Ok(await lookups.GetIncentiveSchemesAsync(cancellationToken));
+
     /// <summary>Product price lists (markup, VAT, fees).</summary>
     [HttpGet("product-price-lists")]
     public async Task<ActionResult<List<ProductPriceListDto>>> GetProductPriceLists(CancellationToken cancellationToken) =>

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HvacErp.Application.Common;
 using HvacErp.Application.Dtos;
+using HvacErp.Application.Pricing;
 using HvacErp.Application.Services;
 using HvacErp.Domain.Entities;
 using HvacErp.Domain.Enums;
@@ -52,6 +53,15 @@ public static class TestDb
         }
         db.ProductPriceLists.Add(priceList);
         return priceList;
+    }
+
+    /// <summary>Adds the default incentive schemes (<see cref="IncentiveSchemeDefaults"/>) and returns them by code.</summary>
+    public static Dictionary<string, IncentiveScheme> SeedIncentiveSchemes(AppDbContext db)
+    {
+        var schemes = IncentiveSchemeDefaults.All();
+        db.IncentiveSchemes.AddRange(schemes);
+        db.SaveChanges();
+        return schemes.ToDictionary(s => s.Code);
     }
 
     public static Product AddProduct(

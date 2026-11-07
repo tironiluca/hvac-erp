@@ -29,6 +29,7 @@ import { SnackbarService } from '../../../core/services/snackbar.service';
 import { Client } from '../../../core/models/client.model';
 import {
   ExtraType,
+  IncentiveScheme,
   LookupItem,
   Operator,
   Product,
@@ -42,6 +43,8 @@ import {
   QuoteDetail,
   QuoteExtraInput,
   QuoteExtraLine,
+  QuoteIncentive,
+  QuoteIncentiveInput,
   QuoteProductInput,
   QuoteStatus,
   UpsertQuoteRequest,
@@ -53,7 +56,15 @@ import { PriceEstimate, estimateQuotePrice } from '../quote-price-estimate';
 type UnitGroup = FormGroup<{
   productId: FormControl<number | null>;
   quantity: FormControl<number>;
-  warranty: FormControl<boolean>;
+  /** `LineAmount` incentive schemes on the line (e.g. an extended warranty). */
+  incentiveSchemeIds: FormControl<number[]>;
+}>;
+
+/** One quote-level incentive scheme offered by the lookup, with its selection on this quote. */
+type IncentiveGroup = FormGroup<{
+  incentiveSchemeId: FormControl<number>;
+  selected: FormControl<boolean>;
+  amount: FormControl<number | null>;
 }>;
 
 type OutletGroup = FormGroup<{
@@ -134,7 +145,8 @@ export class QuoteFormComponent {
   protected saving = signal(false);
   protected uploadingAttachment = signal(false);
   protected generatingPdf = signal(false);
-  protected togglingSf = signal(false);
+  /** Scheme id whose customer acceptance is being toggled. */
+  protected togglingIncentive = signal<number | null>(null);
 
   protected quoteId = signal<number | null>(null);
   protected quote = signal<QuoteDetail | null>(null);
@@ -145,6 +157,11 @@ export class QuoteFormComponent {
   protected internalProducts = signal<Product[]>([]);
   protected serviceItemsList = signal<ServiceItemLookup[]>([]);
   protected extraTypes = signal<ExtraType[]>([]);
+  protected incentiveSchemes = signal<IncentiveScheme[]>([]);
+  /** Schemes offered on the whole quote (in the order of the `incentives` form array). */
+  protected quoteSchemes = computed(() => this.incentiveSchemes().filter((s) => s.kind !== 'LineAmount'));
+  /** Schemes offered on each product line. */
+  protected lineSchemes = computed(() => this.incentiveSchemes().filter((s) => s.kind === 'LineAmount'));
 
   // Phase 8c lookup tables — option set + order from the server, labels via Transloco.
   protected vatOptions = signal<VatOptionLookup[]>([]);
@@ -153,6 +170,8 @@ export class QuoteFormComponent {
 
   /** Quote extras held until the extras form array can be built from the lookup. */
   private pendingExtras: QuoteExtraLine[] = [];
+  /** Quote incentives held until the incentives form array can be built from the lookup. */
+  private pendingIncentives: QuoteIncentive[] = [];
 
   protected clientControl = new FormControl<Client | string | null>(null, {
     validators: [(control) => (control.value && typeof control.value === 'object' ? null : { required: true })],
@@ -165,11 +184,6 @@ export class QuoteFormComponent {
     predisposed: new FormControl(false, { nonNullable: true }),
     vat: new FormControl<VatOption>('Standard22', { nonNullable: true, validators: [Validators.required] }),
     manualDiscount: new FormControl(0, { nonNullable: true }),
-    eneaEligible: new FormControl(false, { nonNullable: true }),
-    eneaPrice: new FormControl<number | null>(null),
-    raeeEligible: new FormControl(false, { nonNullable: true }),
-    raeePrice: new FormControl<number | null>(null),
-    sfRequested: new FormControl(false, { nonNullable: true }),
     installationAddress: new FormControl(''),
     installationCity: new FormControl(''),
     installationPositionNotes: new FormControl(''),
@@ -179,6 +193,7 @@ export class QuoteFormComponent {
     ductedUnits: new FormArray<DuctedUnitGroup>([]),
     serviceItems: new FormArray<ServiceItemGroup>([]),
     extras: new FormArray<ExtraGroup>([]),
+    incentives: new FormArray<IncentiveGroup>([]),
   });
 
   private formTick = toSignal(this.form.valueChanges, { initialValue: null });
@@ -193,8 +208,46 @@ export class QuoteFormComponent {
       serviceItems: this.serviceItemsList(),
       extraTypes: this.extraTypes(),
       vatOptions: this.vatOptions(),
+      incentiveSchemes: this.incentiveSchemes(),
     }),
   );
+
+  /** The invoice-discount scheme selected on the form, if any (for the VAT warning). */
+  protected selectedInvoiceDiscount = computed(() => {
+    const selected = new Set(this.formValue().incentives.filter((i) => i.selected).map((i) => i.incentiveSchemeId));
+    return this.quoteSchemes().find((s) => s.kind === 'InvoiceDiscount' && selected.has(s.id));
+  });
+
+  /** Quote-amount incentives for the summary: the saved quote's, else the form's. */
+  protected summaryAmounts = computed(() => {
+    const saved = this.quote();
+    if (saved) {
+      return saved.incentives
+        .filter((i) => i.kind === 'QuoteAmount')
+        .map((i) => ({ label: i.label, amount: i.amount ?? 0 }));
+    }
+    const byId = new Map(this.quoteSchemes().map((s) => [s.id, s]));
+    return this.formValue()
+      .incentives.filter((i) => i.selected && byId.get(i.incentiveSchemeId)?.kind === 'QuoteAmount')
+      .map((i) => {
+        const scheme = byId.get(i.incentiveSchemeId)!;
+        return { label: scheme.label, amount: i.amount ?? scheme.defaultAmount ?? 0 };
+      });
+  });
+
+  /** Invoice discount for the summary: the saved quote's (with its acceptance), else the live estimate. */
+  protected summaryInvoiceDiscount = computed(() => {
+    const saved = this.quote();
+    if (saved) {
+      const discount = saved.incentives.find((i) => i.kind === 'InvoiceDiscount' && i.amount != null);
+      return discount
+        ? { label: discount.label, grossedTotal: discount.amount!, customerAmount: discount.customerAmount ?? discount.amount!, confirmed: discount.confirmed as boolean | null }
+        : null;
+    }
+    const estimate = this.estimate().invoiceDiscount;
+    const scheme = estimate && this.quoteSchemes().find((s) => s.id === estimate.schemeId);
+    return estimate && scheme ? { label: scheme.label, ...estimate, confirmed: null as boolean | null } : null;
+  });
 
   constructor() {
     this.lookupsService.getOperators().subscribe((o) => this.operators.set(o));
@@ -207,6 +260,10 @@ export class QuoteFormComponent {
     this.lookupsService.getExtraTypes().subscribe((types) => {
       this.extraTypes.set([...types].sort((a, b) => a.sortOrder - b.sortOrder));
       this.buildExtrasArray();
+    });
+    this.lookupsService.getIncentiveSchemes().subscribe((schemes) => {
+      this.incentiveSchemes.set([...schemes].sort((a, b) => a.sortOrder - b.sortOrder));
+      this.buildIncentivesArray();
     });
 
     this.clientControl.valueChanges
@@ -271,6 +328,15 @@ export class QuoteFormComponent {
     this.form.controls.internalUnits.removeAt(index);
   }
 
+  protected lineHasScheme(unit: UnitGroup, schemeId: number): boolean {
+    return unit.controls.incentiveSchemeIds.value.includes(schemeId);
+  }
+
+  protected setLineScheme(unit: UnitGroup, schemeId: number, on: boolean): void {
+    const others = unit.controls.incentiveSchemeIds.value.filter((id) => id !== schemeId);
+    unit.controls.incentiveSchemeIds.setValue(on ? [...others, schemeId] : others);
+  }
+
   protected addDuctedUnit(): void {
     this.form.controls.ductedUnits.push(this.createDuctedUnitGroup());
   }
@@ -321,12 +387,17 @@ export class QuoteFormComponent {
         productId: raw.externalUnit.productId,
         role: 'ExternalUnit',
         quantity: raw.externalUnit.quantity,
-        warranty: raw.externalUnit.warranty,
+        incentiveSchemeIds: raw.externalUnit.incentiveSchemeIds,
       });
     }
     for (const line of raw.internalUnits) {
       if (line.productId) {
-        products.push({ productId: line.productId, role: 'InternalUnit', quantity: line.quantity, warranty: line.warranty });
+        products.push({
+          productId: line.productId,
+          role: 'InternalUnit',
+          quantity: line.quantity,
+          incentiveSchemeIds: line.incentiveSchemeIds,
+        });
       }
     }
 
@@ -338,6 +409,15 @@ export class QuoteFormComponent {
       }
     }
 
+    const schemeKind = new Map(this.quoteSchemes().map((s) => [s.id, s.kind]));
+    const incentives: QuoteIncentiveInput[] = raw.incentives
+      .filter((i) => i.selected)
+      .map((i) => ({
+        incentiveSchemeId: i.incentiveSchemeId,
+        // Only QuoteAmount schemes take an amount; empty means the scheme default.
+        amount: schemeKind.get(i.incentiveSchemeId) === 'QuoteAmount' ? (i.amount ?? undefined) : undefined,
+      }));
+
     const request: UpsertQuoteRequest = {
       clientId: client.id,
       operatorId: raw.operatorId ?? undefined,
@@ -346,12 +426,7 @@ export class QuoteFormComponent {
       predisposed: raw.predisposed,
       vat: raw.vat,
       manualDiscount: raw.manualDiscount,
-      eneaEligible: raw.eneaEligible,
-      eneaPrice: raw.eneaEligible ? (raw.eneaPrice ?? undefined) : undefined,
-      raeeEligible: raw.raeeEligible,
-      raeePrice: raw.raeeEligible ? (raw.raeePrice ?? undefined) : undefined,
-      sfRequested: raw.sfRequested,
-      sfConfirmed: this.quote()?.sfConfirmed ?? false,
+      incentives,
       installationAddress: raw.installationAddress?.trim() || undefined,
       installationCity: raw.installationCity?.trim() || undefined,
       installationPositionNotes: raw.installationPositionNotes || undefined,
@@ -425,18 +500,18 @@ export class QuoteFormComponent {
     });
   }
 
-  protected toggleSfConfirmation(): void {
+  protected toggleIncentiveConfirmation(schemeId: number): void {
     const id = this.quoteId();
-    if (!id || this.togglingSf()) return;
-    this.togglingSf.set(true);
-    this.quotesService.toggleSfConfirmation(id).subscribe({
+    if (!id || this.togglingIncentive() !== null) return;
+    this.togglingIncentive.set(schemeId);
+    this.quotesService.toggleIncentiveConfirmation(id, schemeId).subscribe({
       next: () => {
-        this.togglingSf.set(false);
-        this.snackbar.success(this.transloco.translate('quotes.sfConfirmationToggled'));
+        this.togglingIncentive.set(null);
+        this.snackbar.success(this.transloco.translate('quotes.incentiveConfirmationToggled'));
         this.reloadQuote(id);
       },
       error: (err: HttpErrorResponse) => {
-        this.togglingSf.set(false);
+        this.togglingIncentive.set(null);
         const message = err.status === 400 && err.error?.detail ? err.error.detail : this.transloco.translate('quotes.saveError');
         this.snackbar.error(message);
       },
@@ -517,11 +592,6 @@ export class QuoteFormComponent {
       predisposed: detail.predisposed,
       vat: detail.vat,
       manualDiscount: detail.manualDiscount,
-      eneaEligible: detail.eneaEligible,
-      eneaPrice: detail.eneaPrice ?? null,
-      raeeEligible: detail.raeeEligible,
-      raeePrice: detail.raeePrice ?? null,
-      sfRequested: detail.sfRequested,
       installationAddress: detail.installationAddress ?? '',
       installationCity: detail.installationCity ?? '',
       installationPositionNotes: detail.installationPositionNotes ?? '',
@@ -533,12 +603,14 @@ export class QuoteFormComponent {
       this.form.controls.externalUnit.patchValue({
         productId: external.productId,
         quantity: external.quantity,
-        warranty: external.warranty,
+        incentiveSchemeIds: external.incentives.map((i) => i.incentiveSchemeId),
       });
     }
 
     for (const p of detail.products.filter((p) => p.role === 'InternalUnit')) {
-      this.form.controls.internalUnits.push(this.createUnitGroup(p.productId, p.quantity, p.warranty));
+      this.form.controls.internalUnits.push(
+        this.createUnitGroup(p.productId, p.quantity, p.incentives.map((i) => i.incentiveSchemeId)),
+      );
     }
     for (const d of detail.ductedUnits) {
       this.form.controls.ductedUnits.push(this.createDuctedUnitGroup(d));
@@ -549,6 +621,8 @@ export class QuoteFormComponent {
 
     this.pendingExtras = detail.extras;
     this.buildExtrasArray();
+    this.pendingIncentives = detail.incentives;
+    this.buildIncentivesArray();
 
     if (detail.currentStatus === 'Confirmed') {
       this.form.disable({ emitEvent: false });
@@ -585,11 +659,39 @@ export class QuoteFormComponent {
     }
   }
 
-  private createUnitGroup(productId: number | null = null, quantity = 1, warranty = false): UnitGroup {
+  /** (Re)builds the quote-level incentives form array from the lookup, overlaying the loaded quote's selections. */
+  private buildIncentivesArray(): void {
+    const schemes = this.quoteSchemes();
+    if (schemes.length === 0) {
+      return;
+    }
+
+    const saved = new Map(this.pendingIncentives.map((i) => [i.incentiveSchemeId, i]));
+    this.form.controls.incentives.clear({ emitEvent: false });
+    for (const scheme of schemes) {
+      const line = saved.get(scheme.id);
+      this.form.controls.incentives.push(
+        new FormGroup({
+          incentiveSchemeId: new FormControl(scheme.id, { nonNullable: true }),
+          selected: new FormControl(line != null, { nonNullable: true }),
+          amount: new FormControl<number | null>(scheme.kind === 'QuoteAmount' ? (line?.amount ?? null) : null, {
+            validators: [Validators.min(0)],
+          }),
+        }),
+        { emitEvent: false },
+      );
+    }
+
+    if (this.quote()?.currentStatus === 'Confirmed') {
+      this.form.controls.incentives.disable({ emitEvent: false });
+    }
+  }
+
+  private createUnitGroup(productId: number | null = null, quantity = 1, incentiveSchemeIds: number[] = []): UnitGroup {
     return new FormGroup({
       productId: new FormControl<number | null>(productId, { validators: [Validators.required] }),
       quantity: new FormControl(quantity, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
-      warranty: new FormControl(warranty, { nonNullable: true }),
+      incentiveSchemeIds: new FormControl<number[]>(incentiveSchemeIds, { nonNullable: true }),
     });
   }
 

@@ -2,6 +2,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using HvacErp.Application.Common;
+using HvacErp.Application.Dtos;
 using HvacErp.Application.Pdf;
 using HvacErp.Domain.Entities;
 using HvacErp.Domain.Enums;
@@ -297,6 +298,13 @@ public class QuestPdfQuoteDocumentGenerator : IQuoteDocumentGenerator
         ColumnDescriptor column, PdfSection section, Quote quote, string vatLabel, PdfPageConfig page, PdfLabels l)
     {
         var accent = SafeColor(page.AccentColor, "#BBDEFB");
+        var incentives = quote.Incentives.OrderBy(i => i.IncentiveScheme.SortOrder).ToList();
+        var notes = section.Option("showIncentives")
+            ? incentives
+                .Where(i => i.IncentiveScheme.Kind != IncentiveKinds.InvoiceDiscount && !string.IsNullOrWhiteSpace(i.IncentiveScheme.PdfLabel))
+                .Select(i => i.IncentiveScheme.PdfLabel!)
+                .ToList()
+            : [];
 
         column.Item().PaddingTop(10).Column(col =>
         {
@@ -305,55 +313,60 @@ public class QuestPdfQuoteDocumentGenerator : IQuoteDocumentGenerator
                 row.RelativeItem().Column(inner =>
                 {
                     inner.Item().Text($"{l.SupplyAndInstallationTotal} — {vatLabel}").FontSize(11);
-                    if (section.Option("showEnea") && quote.EneaEligible)
+                    foreach (var note in notes)
                     {
-                        inner.Item().Text(l.EneaEligible).FontSize(9).FontColor(Colors.Green.Darken2);
-                    }
-                    if (section.Option("showRaee") && quote.RaeeEligible)
-                    {
-                        inner.Item().Text(l.RaeeIncluded).FontSize(9).FontColor(Colors.Green.Darken2);
+                        inner.Item().Text(note).FontSize(9).FontColor(Colors.Green.Darken2);
                     }
                 });
                 row.ConstantItem(150).AlignRight().Text(l.Money(quote.FinalPrice)).FontSize(18).Bold();
             });
 
-            if (section.Option("showSfBlock") && quote is { SfRequested: true, SfPrice: { } sfPrice })
+            var discount = incentives.FirstOrDefault(i => i.IncentiveScheme.Kind == IncentiveKinds.InvoiceDiscount);
+            if (section.Option("showInvoiceDiscount") && discount is { Amount: { } grossed })
             {
-                ComposeInvoiceDiscountBlock(col, section, quote, sfPrice, l);
+                ComposeInvoiceDiscountBlock(col, quote, discount, grossed, l);
             }
         });
     }
 
     /// <summary>
-    /// Invoice-discount ("sconto in fattura") block: the grossed-up invoice total struck through, next to the 50%
-    /// amount the customer actually pays (legacy InsPrev.vb GeneraPdfScontoFattura).
+    /// Invoice-discount block (legacy InsPrev.vb GeneraPdfScontoFattura): the grossed-up invoice total
+    /// struck through, the notes of the quote's other schemes, and the share the customer pays.
     /// </summary>
     private static void ComposeInvoiceDiscountBlock(
-        ColumnDescriptor column, PdfSection section, Quote quote, decimal sfPrice, PdfLabels l)
+        ColumnDescriptor column, Quote quote, QuoteIncentive discount, decimal grossed, PdfLabels l)
     {
+        var scheme = discount.IncentiveScheme;
+        var share = scheme.Percent ?? 100m;
+        var notes = quote.Incentives.Select(i => i.IncentiveScheme)
+            .Concat(quote.Products.SelectMany(p => p.Incentives).Select(i => i.IncentiveScheme))
+            .Where(s => s.Code != scheme.Code)
+            .Where(s => !string.IsNullOrWhiteSpace(s.PdfInvoiceDiscountNote))
+            .DistinctBy(s => s.Code)
+            .OrderBy(s => s.SortOrder)
+            .Select(s => s.PdfInvoiceDiscountNote!)
+            .ToList();
+
         column.Item().PaddingTop(8).Background(Colors.Grey.Lighten3).Padding(12).Column(col =>
         {
-            col.Item().Text(l.InvoiceDiscount).Bold().FontSize(10);
+            col.Item().Text(scheme.PdfLabel ?? scheme.Label).Bold().FontSize(10);
 
             col.Item().PaddingTop(4).Row(row =>
             {
                 row.RelativeItem().Text(l.InvoiceTotalWithVat).FontSize(10);
-                row.ConstantItem(130).AlignRight().Text(l.Money(sfPrice)).FontSize(11).Strikethrough();
+                row.ConstantItem(130).AlignRight().Text(l.Money(grossed)).FontSize(11).Strikethrough();
             });
 
-            if (section.Option("showWarrantyNote") && quote.Products.Any(p => p.Warranty))
+            foreach (var note in notes)
             {
-                col.Item().Text(l.WarrantyIncluded).FontSize(9).FontColor(Colors.Grey.Darken2);
-            }
-            if (section.Option("showEnea") && quote.EneaEligible)
-            {
-                col.Item().Text(l.EneaPaperworkIncluded).FontSize(9).FontColor(Colors.Grey.Darken2);
+                col.Item().Text(note).FontSize(9).FontColor(Colors.Grey.Darken2);
             }
 
             col.Item().PaddingTop(4).Row(row =>
             {
-                row.RelativeItem().Text(l.TotalWithInvoiceDiscount).Bold().FontSize(10);
-                row.ConstantItem(130).AlignRight().Text(l.Money(sfPrice / 2m)).FontSize(13).Bold();
+                row.RelativeItem().Text(string.Format(l.Culture, l.TotalWithInvoiceDiscount, share.ToString("0.##", l.Culture)))
+                    .Bold().FontSize(10);
+                row.ConstantItem(130).AlignRight().Text(l.Money(discount.CustomerAmount() ?? grossed)).FontSize(13).Bold();
             });
         });
     }

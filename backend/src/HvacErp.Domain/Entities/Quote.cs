@@ -49,26 +49,6 @@ public class Quote
     public decimal Rounding { get; set; }
     public decimal FinalPrice { get; set; }
 
-    public bool EneaEligible { get; set; }
-    public decimal? EneaPrice { get; set; }
-
-    /// <summary>
-    /// Legacy "RAEE" checkbox (waste electrical/electronic equipment take-back). The legacy app
-    /// only stored the flag; a price is tracked going forward, mirroring
-    /// <see cref="EneaEligible"/>/<see cref="EneaPrice"/>. Display-only — not rolled into <see cref="FinalPrice"/>.
-    /// </summary>
-    public bool RaeeEligible { get; set; }
-    public decimal? RaeePrice { get; set; }
-
-    /// <summary>
-    /// "Sconto in Fattura" — an invoice-discount tax scheme offered only on VAT-inclusive quotes.
-    /// <see cref="SfPrice"/> is the grossed-up total the invoice shows struck through; the customer
-    /// pays half of it. <see cref="SfPrice"/> is computed by the pricing engine and is null when
-    /// <see cref="SfRequested"/> is false or the quote is VAT-exempt.
-    /// </summary>
-    public bool SfRequested { get; set; }
-    public bool SfConfirmed { get; set; }
-    public decimal? SfPrice { get; set; }
 
     /// <summary>
     /// Optional per-quote installation site (second homes, rentals, "cliente amico" referral installs).
@@ -94,6 +74,9 @@ public class Quote
     public ICollection<DuctedUnit> DuctedUnits { get; set; } = new List<DuctedUnit>();
     public ICollection<QuoteServiceItem> ServiceItems { get; set; } = new List<QuoteServiceItem>();
     public ICollection<QuoteExtra> Extras { get; set; } = new List<QuoteExtra>();
+
+    /// <summary>Tax incentives, fees and invoice discounts on the quote (see <see cref="IncentiveScheme"/>).</summary>
+    public ICollection<QuoteIncentive> Incentives { get; set; } = new List<QuoteIncentive>();
     public ICollection<QuoteStatusEvent> StatusEvents { get; set; } = new List<QuoteStatusEvent>();
     public ICollection<QuoteAttachment> Attachments { get; set; } = new List<QuoteAttachment>();
     public ICollection<FGasRecord> FGasRecords { get; set; } = new List<FGasRecord>();
@@ -116,8 +99,9 @@ public class QuoteProduct
     public int Quantity { get; set; } = 1;
     public decimal Price { get; set; }
     public decimal DiscountedPrice { get; set; }
-    public bool Warranty { get; set; }
-    public decimal? WarrantyPrice { get; set; }
+
+    /// <summary>Per-line options such as an extended warranty (<see cref="IncentiveKinds.LineAmount"/> schemes).</summary>
+    public ICollection<QuoteProductIncentive> Incentives { get; set; } = new List<QuoteProductIncentive>();
 }
 
 /// <summary>Ducted ("canalizzato") system configuration for one quote — the shared plenum/hose/remote

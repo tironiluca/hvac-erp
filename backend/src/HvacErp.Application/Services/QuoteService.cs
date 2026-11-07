@@ -60,6 +60,8 @@ public class QuoteService(
             .Include(q => q.DuctedUnits).ThenInclude(d => d.Outlets)
             .Include(q => q.ServiceItems)
             .Include(q => q.Extras)
+            .Include(q => q.Incentives)
+            .Include(q => q.Products).ThenInclude(p => p.Incentives)
             .FirstOrDefaultAsync(q => q.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Quote), id);
 
@@ -73,12 +75,17 @@ public class QuoteService(
         context.DuctedUnits.RemoveRange(quote.DuctedUnits);
         context.QuoteServiceItems.RemoveRange(quote.ServiceItems);
         context.QuoteExtras.RemoveRange(quote.Extras);
+        // Customer acceptances are not part of the edit form: they survive a save.
+        var previousIncentives = quote.Incentives.ToDictionary(i => i.IncentiveSchemeId);
+        context.QuoteProductIncentives.RemoveRange(quote.Products.SelectMany(p => p.Incentives));
+        context.QuoteIncentives.RemoveRange(quote.Incentives);
         quote.Products.Clear();
         quote.DuctedUnits.Clear();
         quote.ServiceItems.Clear();
         quote.Extras.Clear();
+        quote.Incentives.Clear();
 
-        await ApplyRequestAsync(quote, request, cancellationToken);
+        await ApplyRequestAsync(quote, request, cancellationToken, previousIncentives);
         await pricing.PriceAsync(quote, cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
@@ -110,19 +117,24 @@ public class QuoteService(
     }
 
     /// <summary>
-    /// Toggles the "Sconto in Fattura" acceptance flag. Separate from <see cref="UpdateAsync"/> so it
-    /// can still be flipped once the quote is locked (legacy toggled <c>PP_CONFERMATO_SF</c> independently).
+    /// Toggles the customer's acceptance of an incentive that requires it (an invoice discount).
+    /// Separate from <see cref="UpdateAsync"/> so it can still be flipped once the quote is locked
+    /// (legacy toggled <c>PP_CONFERMATO_SF</c> independently).
     /// </summary>
-    public async Task ToggleSfConfirmationAsync(int id, CancellationToken cancellationToken = default)
+    public async Task ToggleIncentiveConfirmationAsync(int id, int schemeId, CancellationToken cancellationToken = default)
     {
-        currentUser.EnsureInRole("change the invoice-discount confirmation", UserRole.Sales, UserRole.Admin);
-        var quote = await GetTrackedAsync(id, cancellationToken);
-        if (!quote.SfRequested)
+        currentUser.EnsureInRole("change an incentive confirmation", UserRole.Sales, UserRole.Admin);
+        var incentive = await context.QuoteIncentives
+            .Include(i => i.IncentiveScheme)
+            .FirstOrDefaultAsync(i => i.QuoteId == id && i.IncentiveSchemeId == schemeId, cancellationToken)
+            ?? throw new NotFoundException(nameof(QuoteIncentive), $"{id}/{schemeId}");
+
+        if (!incentive.IncentiveScheme.RequiresConfirmation)
         {
-            throw new BusinessRuleException("This quote hasn't requested an invoice discount ('Sconto in Fattura').");
+            throw new BusinessRuleException($"'{incentive.IncentiveScheme.Label}' does not need the customer's confirmation.");
         }
 
-        quote.SfConfirmed = !quote.SfConfirmed;
+        incentive.Confirmed = !incentive.Confirmed;
         await context.SaveChangesAsync(cancellationToken);
     }
 
@@ -164,28 +176,31 @@ public class QuoteService(
             .Include(q => q.Client)
             .Include(q => q.Operator)
             .Include(q => q.Products).ThenInclude(p => p.Product)
+            .Include(q => q.Products).ThenInclude(p => p.Incentives).ThenInclude(i => i.IncentiveScheme)
             .Include(q => q.DuctedUnits).ThenInclude(d => d.Outlets)
             .Include(q => q.ServiceItems).ThenInclude(s => s.ServiceItem)
             .Include(q => q.Extras).ThenInclude(e => e.ExtraType)
+            .Include(q => q.Incentives).ThenInclude(i => i.IncentiveScheme)
             .Include(q => q.StatusEvents)
             .Include(q => q.Attachments)
             .FirstOrDefaultAsync(q => q.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Quote), id);
 
-    private async Task ApplyRequestAsync(Quote quote, UpsertQuoteRequest request, CancellationToken cancellationToken)
+    private async Task ApplyRequestAsync(
+        Quote quote,
+        UpsertQuoteRequest request,
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<int, QuoteIncentive>? previousIncentives = null)
     {
+        previousIncentives ??= new Dictionary<int, QuoteIncentive>();
+        var schemes = await LoadRequestedSchemesAsync(request, previousIncentives, cancellationToken);
+
         quote.OperatorId = request.OperatorId;
         quote.ParentQuoteId = request.ParentQuoteId;
         quote.Department = request.Department;
         quote.Predisposed = request.Predisposed;
         quote.Vat = request.Vat;
         quote.ManualDiscount = request.ManualDiscount;
-        quote.EneaEligible = request.EneaEligible;
-        quote.EneaPrice = request.EneaPrice;
-        quote.RaeeEligible = request.RaeeEligible;
-        quote.RaeePrice = request.RaeePrice;
-        quote.SfRequested = request.SfRequested;
-        quote.SfConfirmed = request.SfConfirmed;
         quote.InstallationAddress = string.IsNullOrWhiteSpace(request.InstallationAddress) ? null : request.InstallationAddress.Trim();
         quote.InstallationCity = string.IsNullOrWhiteSpace(request.InstallationCity) ? null : request.InstallationCity.Trim();
         quote.InstallationPositionNotes = request.InstallationPositionNotes;
@@ -196,13 +211,23 @@ public class QuoteService(
             _ = await context.Products.FindAsync([p.ProductId], cancellationToken)
                 ?? throw new NotFoundException(nameof(Product), p.ProductId);
 
-            quote.Products.Add(new QuoteProduct
+            var line = new QuoteProduct
             {
                 ProductId = p.ProductId,
                 Role = p.Role,
                 Quantity = p.Quantity,
-                Warranty = p.Warranty
-            });
+            };
+            foreach (var schemeId in (p.IncentiveSchemeIds ?? []).Distinct())
+            {
+                var scheme = schemes[schemeId];
+                if (scheme.Kind != IncentiveKinds.LineAmount)
+                {
+                    throw new BusinessRuleException($"'{scheme.Label}' applies to the whole quote, not to a product line.");
+                }
+                line.Incentives.Add(new QuoteProductIncentive { IncentiveSchemeId = scheme.Id, IncentiveScheme = scheme });
+            }
+
+            quote.Products.Add(line);
         }
 
         foreach (var d in request.DuctedUnits)
@@ -258,5 +283,64 @@ public class QuoteService(
                 UnitPrice = extraType.DefaultPrice
             });
         }
+
+        foreach (var input in (request.Incentives ?? []).DistinctBy(i => i.IncentiveSchemeId))
+        {
+            var scheme = schemes[input.IncentiveSchemeId];
+            if (scheme.Kind == IncentiveKinds.LineAmount)
+            {
+                throw new BusinessRuleException($"'{scheme.Label}' applies to a product line, not to the whole quote.");
+            }
+            if (input.Amount is < 0)
+            {
+                throw new BusinessRuleException($"The amount for '{scheme.Label}' cannot be negative.");
+            }
+
+            quote.Incentives.Add(new QuoteIncentive
+            {
+                IncentiveSchemeId = scheme.Id,
+                IncentiveScheme = scheme,
+                // QuoteAmount: entered or default. Computed kinds are filled in by the pricing engine.
+                Amount = scheme.Kind == IncentiveKinds.QuoteAmount ? input.Amount ?? scheme.DefaultAmount : null,
+                Confirmed = previousIncentives.TryGetValue(scheme.Id, out var previous) && previous.Confirmed,
+            });
+        }
+
+        if (quote.Incentives.Count(i => i.IncentiveScheme.Kind == IncentiveKinds.InvoiceDiscount) > 1)
+        {
+            throw new BusinessRuleException("A quote can carry only one invoice-discount scheme.");
+        }
+    }
+
+    /// <summary>
+    /// Loads every scheme the request refers to. A scheme an admin has since deactivated can stay on
+    /// a quote that already had it, but cannot be newly added.
+    /// </summary>
+    private async Task<Dictionary<int, IncentiveScheme>> LoadRequestedSchemesAsync(
+        UpsertQuoteRequest request,
+        IReadOnlyDictionary<int, QuoteIncentive> previousQuoteIncentives,
+        CancellationToken cancellationToken)
+    {
+        var ids = (request.Incentives ?? []).Select(i => i.IncentiveSchemeId)
+            .Concat(request.Products.SelectMany(p => p.IncentiveSchemeIds ?? []))
+            .Distinct()
+            .ToList();
+        var schemes = await context.IncentiveSchemes
+            .Where(s => ids.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, cancellationToken);
+
+        foreach (var id in ids)
+        {
+            if (!schemes.TryGetValue(id, out var scheme))
+            {
+                throw new NotFoundException(nameof(IncentiveScheme), id);
+            }
+            if (!scheme.Active && !previousQuoteIncentives.ContainsKey(id))
+            {
+                throw new BusinessRuleException($"'{scheme.Label}' is no longer offered.");
+            }
+        }
+
+        return schemes;
     }
 }

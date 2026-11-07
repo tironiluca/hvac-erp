@@ -12,7 +12,7 @@ public class RowLevelSecurityCoverageTests
     /// ENABLE ROW LEVEL SECURITY + policies (see the README's Authorization section) and then be
     /// listed here, so this check fails loudly instead of leaving a table open to the Data API.
     /// </summary>
-    private static readonly string[] SecuredByLaterMigrations = [];
+    private static readonly string[] SecuredByLaterMigrations = [.. IncentiveSchemes.SecuredTables];
 
     [Fact]
     public void Every_model_table_is_covered_by_a_row_level_security_migration()

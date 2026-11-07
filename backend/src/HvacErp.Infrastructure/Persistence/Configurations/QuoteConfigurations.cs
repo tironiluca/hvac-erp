@@ -172,3 +172,67 @@ public class QuoteAttachmentConfiguration : IEntityTypeConfiguration<QuoteAttach
         builder.Property(a => a.FileUrl).HasMaxLength(1000).IsRequired();
     }
 }
+
+/// <summary>EF Core mapping for <see cref="IncentiveScheme"/>.</summary>
+public class IncentiveSchemeConfiguration : IEntityTypeConfiguration<IncentiveScheme>
+{
+    public void Configure(EntityTypeBuilder<IncentiveScheme> builder)
+    {
+        builder.Property(s => s.Code).HasMaxLength(50).IsRequired();
+        builder.HasIndex(s => s.Code).IsUnique();
+        builder.Property(s => s.Label).HasMaxLength(150).IsRequired();
+        builder.Property(s => s.Kind).HasMaxLength(30).IsRequired();
+        builder.Property(s => s.PdfLabel).HasMaxLength(200);
+        builder.Property(s => s.PdfInvoiceDiscountNote).HasMaxLength(200);
+
+        // The parameters each calculation needs are enforced by the database too, so a row edited
+        // by hand cannot leave pricing without a rate or a step.
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_incentive_schemes_kind", "kind IN ('QuoteAmount', 'LineAmount', 'InvoiceDiscount')");
+            t.HasCheckConstraint("ck_incentive_schemes_line_amount",
+                "kind <> 'LineAmount' OR default_amount IS NOT NULL OR percent IS NOT NULL");
+            t.HasCheckConstraint("ck_incentive_schemes_invoice_discount",
+                "kind <> 'InvoiceDiscount' OR (threshold IS NOT NULL AND rate_below_threshold > 0 "
+                + "AND rate_above_threshold > 0 AND rounding_step > 0 AND percent > 0 AND percent <= 100)");
+        });
+    }
+}
+
+/// <summary>EF Core mapping for <see cref="QuoteIncentive"/>.</summary>
+public class QuoteIncentiveConfiguration : IEntityTypeConfiguration<QuoteIncentive>
+{
+    public void Configure(EntityTypeBuilder<QuoteIncentive> builder)
+    {
+        builder.HasIndex(i => new { i.QuoteId, i.IncentiveSchemeId }).IsUnique();
+
+        builder.HasOne(i => i.Quote)
+            .WithMany(q => q.Incentives)
+            .HasForeignKey(i => i.QuoteId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(i => i.IncentiveScheme)
+            .WithMany()
+            .HasForeignKey(i => i.IncentiveSchemeId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+/// <summary>EF Core mapping for <see cref="QuoteProductIncentive"/>.</summary>
+public class QuoteProductIncentiveConfiguration : IEntityTypeConfiguration<QuoteProductIncentive>
+{
+    public void Configure(EntityTypeBuilder<QuoteProductIncentive> builder)
+    {
+        builder.HasIndex(i => new { i.QuoteProductId, i.IncentiveSchemeId }).IsUnique();
+
+        builder.HasOne(i => i.QuoteProduct)
+            .WithMany(p => p.Incentives)
+            .HasForeignKey(i => i.QuoteProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(i => i.IncentiveScheme)
+            .WithMany()
+            .HasForeignKey(i => i.IncentiveSchemeId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

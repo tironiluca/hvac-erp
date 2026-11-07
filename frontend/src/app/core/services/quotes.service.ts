@@ -52,9 +52,9 @@ export class QuotesService {
     return this.http.post<void>(`${this.baseUrl}/${id}/confirm`, {});
   }
 
-  /** Flips the 'Sconto in Fattura' acceptance flag. */
-  toggleSfConfirmation(id: number): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/${id}/sf-confirmation`, {});
+  /** Flips the customer's acceptance of an incentive that requires it (e.g. an invoice discount). */
+  toggleIncentiveConfirmation(id: number, schemeId: number): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/${id}/incentives/${schemeId}/confirmation`, {});
   }
 
   /** Deletes the quote. */

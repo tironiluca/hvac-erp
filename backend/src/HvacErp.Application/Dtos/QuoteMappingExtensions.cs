@@ -7,7 +7,8 @@ namespace HvacErp.Application.Dtos;
 /// <summary>
 /// Maps loaded Quote aggregates to DTOs. Callers must have eager-loaded Client, Operator,
 /// Products (with Product), DuctedUnits (with Outlets), ServiceItems (with ServiceItem),
-/// Extras (with ExtraType), StatusEvents and Attachments.
+/// Extras (with ExtraType), Incentives (with IncentiveScheme), Products' Incentives (with
+/// IncentiveScheme), StatusEvents and Attachments.
 /// </summary>
 public static class QuoteMappingExtensions
 {
@@ -39,9 +40,7 @@ public static class QuoteMappingExtensions
             confirm is not null, confirm?.OccurredAt,
             q.Predisposed, q.Vat, q.ManualDiscount,
             q.MachinesPrice, q.InstallationPrice, q.Rounding, q.FinalPrice,
-            q.EneaEligible, q.EneaPrice,
-            q.RaeeEligible, q.RaeePrice,
-            q.SfRequested, q.SfConfirmed, q.SfPrice,
+            q.Incentives.OrderBy(i => i.IncentiveScheme.SortOrder).Select(i => i.ToDto()).ToList(),
             q.InstallationAddress, q.InstallationCity,
             q.InstallationPositionNotes, q.FloorPlanImageUrl, q.PdfUrl,
             q.Products.Select(p => p.ToDto()).ToList(),
@@ -60,7 +59,21 @@ public static class QuoteMappingExtensions
     /// <summary>Maps a quote child row to its DTO.</summary>
     public static QuoteProductDto ToDto(this QuoteProduct p) => new(
         p.Id, p.ProductId, p.Product.Brand, p.Product.Model, p.Role, p.Quantity,
-        p.Price, p.DiscountedPrice, p.Warranty, p.WarrantyPrice);
+        p.Price, p.DiscountedPrice,
+        p.Incentives.OrderBy(i => i.IncentiveScheme.SortOrder)
+            .Select(i => new QuoteProductIncentiveDto(i.IncentiveSchemeId, i.IncentiveScheme.Code, i.IncentiveScheme.Label, i.Amount))
+            .ToList());
+
+    /// <summary>Maps a quote incentive (with its scheme loaded) to its DTO.</summary>
+    public static QuoteIncentiveDto ToDto(this QuoteIncentive i) => new(
+        i.IncentiveSchemeId, i.IncentiveScheme.Code, i.IncentiveScheme.Label, i.IncentiveScheme.Kind,
+        i.Amount, i.CustomerAmount(), i.IncentiveScheme.RequiresConfirmation, i.Confirmed);
+
+    /// <summary>What the customer pays under an invoice discount (its share of the grossed-up total); null otherwise.</summary>
+    public static decimal? CustomerAmount(this QuoteIncentive i) =>
+        i.IncentiveScheme.Kind == IncentiveKinds.InvoiceDiscount && i.Amount is { } grossed && i.IncentiveScheme.Percent is { } share
+            ? Math.Round(grossed * share / 100m, 2, MidpointRounding.AwayFromZero)
+            : null;
 
     /// <summary>Maps a quote child row to its DTO.</summary>
     public static QuoteServiceItemDto ToDto(this QuoteServiceItem s) => new(

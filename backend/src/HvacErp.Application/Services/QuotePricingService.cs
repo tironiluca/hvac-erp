@@ -36,8 +36,9 @@ public class QuotePricingService(IAppDbContext context) : IQuotePricingService
             .ToDictionaryAsync(p => p.Id, cancellationToken);
 
         ValidateCompatibility(quote, products);
+        var schemes = await LoadIncentiveSchemesAsync(quote, cancellationToken);
 
-        var machinesPrice = PriceUnits(quote, products)
+        var machinesPrice = PriceUnits(quote, products, schemes)
                             + await PriceDuctedAccessoriesAsync(quote, cancellationToken);
         var (extrasInstallation, extrasFlat) = await PriceExtrasAsync(quote, cancellationToken);
         var installationPrice = await PriceInstallationAsync(quote, cancellationToken) + extrasInstallation;
@@ -63,30 +64,88 @@ public class QuotePricingService(IAppDbContext context) : IQuotePricingService
 
         quote.MachinesPrice = machinesPrice;
         quote.InstallationPrice = installationPrice;
-        quote.FinalPrice = blended + extrasFlat + ductedOutletsPrice + quote.ManualDiscount + quote.Rounding;
-        quote.SfPrice = CalculateSfPrice(quote, vat);
+        quote.FinalPrice = blended + extrasFlat + ductedOutletsPrice + ChargedQuoteAmounts(quote, schemes)
+                           + quote.ManualDiscount + quote.Rounding;
+        PriceInvoiceDiscounts(quote, schemes, vat);
+    }
+
+    private async Task<Dictionary<int, IncentiveScheme>> LoadIncentiveSchemesAsync(Quote quote, CancellationToken cancellationToken)
+    {
+        var ids = quote.Incentives.Select(i => i.IncentiveSchemeId)
+            .Concat(quote.Products.SelectMany(p => p.Incentives).Select(i => i.IncentiveSchemeId))
+            .Distinct()
+            .ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var schemes = await context.IncentiveSchemes.Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id, cancellationToken);
+
+        // Rows built from a request carry only the id; give them their scheme for the callers that follow.
+        foreach (var incentive in quote.Incentives)
+        {
+            incentive.IncentiveScheme = schemes[incentive.IncentiveSchemeId];
+        }
+        foreach (var incentive in quote.Products.SelectMany(p => p.Incentives))
+        {
+            incentive.IncentiveScheme = schemes[incentive.IncentiveSchemeId];
+        }
+
+        return schemes;
     }
 
     /// <summary>
-    /// "Sconto in Fattura" grossed-up total (legacy <c>InsPrev.vb</c> <c>prezzoSF</c>). Basis is the
-    /// final price with <see cref="Quote.ManualDiscount"/> added back out (legacy grosses the
-    /// pre-discount <c>txtPrezzoFinale = txtPrezzo + txtScontoPrezzo</c>) plus the ENEA practice
-    /// amount — the warranty is already inside <see cref="Quote.FinalPrice"/> in this model, unlike
-    /// legacy where it was re-added here. Grossed by ×1.3 below €2000 else ×1.2, then bumped up to
-    /// the next €50 (legacy adds a full €50 even on an exact multiple — kept as-is). Null unless
-    /// requested and the quote carries VAT.
+    /// <see cref="IncentiveKinds.LineAmount"/>: a fixed amount per unit, or <see cref="IncentiveScheme.Percent"/>
+    /// of the list unit price per unit (legacy all-inclusive warranty, 8% of list).
     /// </summary>
-    private static decimal? CalculateSfPrice(Quote quote, VatOption vat)
-    {
-        if (!quote.SfRequested || vat.BlendShape == VatBlendShapes.None)
-        {
-            return null;
-        }
+    public static decimal LineAmount(IncentiveScheme scheme, decimal listUnitPrice, int quantity) =>
+        Math.Round(
+            (scheme.DefaultAmount ?? listUnitPrice * (scheme.Percent ?? 0m) / 100m) * quantity,
+            2, MidpointRounding.AwayFromZero);
 
-        var basis = quote.FinalPrice - quote.ManualDiscount
-                    + (quote.EneaEligible ? quote.EneaPrice ?? 0m : 0m);
-        var grossed = basis * (basis < 2000m ? 1.3m : 1.2m);
-        return grossed + (50m - grossed % 50m);
+    /// <summary>Quote amounts charged on top of the VAT-blended total (<see cref="IncentiveScheme.AddToPrice"/>).</summary>
+    private static decimal ChargedQuoteAmounts(Quote quote, IReadOnlyDictionary<int, IncentiveScheme> schemes) =>
+        quote.Incentives
+            .Where(i => schemes[i.IncentiveSchemeId] is { Kind: IncentiveKinds.QuoteAmount, AddToPrice: true })
+            .Sum(i => i.Amount ?? 0m);
+
+    /// <summary>
+    /// <see cref="IncentiveKinds.InvoiceDiscount"/> (legacy <c>InsPrev.vb</c> <c>prezzoSF</c>). The basis is
+    /// the final price with <see cref="Quote.ManualDiscount"/> added back out (legacy grosses the
+    /// pre-discount <c>txtPrezzoFinale = txtPrezzo + txtScontoPrezzo</c>), plus every quote amount
+    /// flagged <see cref="IncentiveScheme.IncludeInInvoiceDiscountBasis"/>. Line amounts are already in
+    /// <see cref="Quote.FinalPrice"/>. The basis is grossed up by the below / above-threshold rate and
+    /// then raised to the next rounding step; legacy adds a full step even on an exact multiple, kept
+    /// as-is. Null when the scheme needs VAT and the quote is exempt.
+    /// </summary>
+    private static void PriceInvoiceDiscounts(Quote quote, IReadOnlyDictionary<int, IncentiveScheme> schemes, VatOption vat)
+    {
+        var discounts = quote.Incentives.Where(i => schemes[i.IncentiveSchemeId].Kind == IncentiveKinds.InvoiceDiscount);
+        foreach (var discount in discounts)
+        {
+            var scheme = schemes[discount.IncentiveSchemeId];
+            if (scheme.RequiresVat && vat.BlendShape == VatBlendShapes.None)
+            {
+                discount.Amount = null;
+                continue;
+            }
+
+            var basis = quote.FinalPrice - quote.ManualDiscount
+                        + quote.Incentives
+                            .Where(i => schemes[i.IncentiveSchemeId] is { Kind: IncentiveKinds.QuoteAmount, IncludeInInvoiceDiscountBasis: true })
+                            .Sum(i => i.Amount ?? 0m);
+            discount.Amount = InvoiceDiscountTotal(scheme, basis);
+        }
+    }
+
+    /// <summary>The grossed-up, step-rounded invoice total for a basis (see <see cref="PriceInvoiceDiscounts"/>).</summary>
+    public static decimal InvoiceDiscountTotal(IncentiveScheme scheme, decimal basis)
+    {
+        var rate = basis < scheme.Threshold!.Value ? scheme.RateBelowThreshold!.Value : scheme.RateAboveThreshold!.Value;
+        var grossed = basis * rate;
+        var step = scheme.RoundingStep!.Value;
+        return grossed + (step - grossed % step);
     }
 
     /// <summary>
@@ -137,7 +196,8 @@ public class QuotePricingService(IAppDbContext context) : IQuotePricingService
         }
     }
 
-    private static decimal PriceUnits(Quote quote, IReadOnlyDictionary<int, Product> products)
+    private static decimal PriceUnits(
+        Quote quote, IReadOnlyDictionary<int, Product> products, IReadOnlyDictionary<int, IncentiveScheme> schemes)
     {
         decimal total = 0m;
 
@@ -162,9 +222,14 @@ public class QuotePricingService(IAppDbContext context) : IQuotePricingService
             line.DiscountedPrice = netPrice;
 
             total += netPrice * line.Quantity;
-            if (line.Warranty)
+            foreach (var incentive in line.Incentives)
             {
-                total += line.WarrantyPrice ?? 0m;
+                var scheme = schemes[incentive.IncentiveSchemeId];
+                incentive.Amount = LineAmount(scheme, listPrice, line.Quantity);
+                if (scheme.AddToPrice)
+                {
+                    total += incentive.Amount;
+                }
             }
         }
 

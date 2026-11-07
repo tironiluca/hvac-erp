@@ -1,5 +1,6 @@
 using HvacErp.Application.Common;
 using HvacErp.Application.Dtos;
+using HvacErp.Application.Pricing;
 using HvacErp.Application.Services;
 using HvacErp.Application.Tests.Support;
 using HvacErp.Domain.Entities;
@@ -14,6 +15,7 @@ public class QuoteServiceWorkflowTests
     private readonly QuoteService _sut;
     private readonly Client _client;
     private readonly Product _external;
+    private readonly Dictionary<string, IncentiveScheme> _schemes;
 
     public QuoteServiceWorkflowTests()
     {
@@ -21,13 +23,18 @@ public class QuoteServiceWorkflowTests
         TestDb.SeedBaseInstallationItems(_db);
         var list = TestDb.AddPriceList(_db);
         _external = TestDb.AddProduct(_db, list, 1000m);
+        _schemes = TestDb.SeedIncentiveSchemes(_db);
         _client = TestDb.AddClient(_db);
         _db.SaveChanges();
 
         _sut = new QuoteService(_db, new QuoteNumberingService(_db), new QuotePricingService(_db), new FakeCurrentUser("sales@example.com"));
     }
 
-    private UpsertQuoteRequest Request(bool sfRequested = false) => new(
+    private int SchemeId(string code) => _schemes[code].Id;
+
+    private UpsertQuoteRequest Request(params QuoteIncentiveInput[] incentives) => Request([], incentives);
+
+    private UpsertQuoteRequest Request(List<int> lineSchemeIds, params QuoteIncentiveInput[] incentives) => new(
         ClientId: _client.Id,
         OperatorId: null,
         ParentQuoteId: null,
@@ -35,19 +42,16 @@ public class QuoteServiceWorkflowTests
         Predisposed: true,
         Vat: VatCodes.Exempt,
         ManualDiscount: 0m,
-        EneaEligible: false,
-        EneaPrice: null,
-        RaeeEligible: false,
-        RaeePrice: null,
-        SfRequested: sfRequested,
-        SfConfirmed: false,
         InstallationAddress: "  Via Roma 1  ",
         InstallationCity: " ",
         InstallationPositionNotes: null,
-        Products: [new QuoteProductInput(_external.Id, ProductRole.ExternalUnit, 1, false)],
+        Products: [new QuoteProductInput(_external.Id, ProductRole.ExternalUnit, 1, lineSchemeIds)],
         DuctedUnits: [],
         ServiceItems: [],
-        Extras: []);
+        Extras: [],
+        Incentives: [.. incentives]);
+
+    private QuoteIncentiveInput Discount => new(SchemeId(IncentiveSchemeDefaults.InvoiceDiscount50));
 
     [Fact]
     public async Task Create_numbers_prices_and_normalises_the_quote()
@@ -112,27 +116,75 @@ public class QuoteServiceWorkflowTests
     }
 
     [Fact]
-    public async Task Sf_confirmation_toggles_only_when_requested()
+    public async Task Incentive_confirmation_toggles_only_for_schemes_that_need_it()
     {
-        var withoutSf = await _sut.CreateAsync(Request());
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.ToggleSfConfirmationAsync(withoutSf.Id));
+        var discountId = SchemeId(IncentiveSchemeDefaults.InvoiceDiscount50);
+        var weeeId = SchemeId(IncentiveSchemeDefaults.WeeeTakeBack);
+        var withoutDiscount = await _sut.CreateAsync(Request(new QuoteIncentiveInput(weeeId, 30m)));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.ToggleIncentiveConfirmationAsync(withoutDiscount.Id, discountId));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.ToggleIncentiveConfirmationAsync(withoutDiscount.Id, weeeId));
 
-        var withSf = await _sut.CreateAsync(Request(sfRequested: true));
-        await _sut.ConfirmAsync(withSf.Id);
-        await _sut.ToggleSfConfirmationAsync(withSf.Id); // still allowed once locked
+        var withDiscount = await _sut.CreateAsync(Request(Discount));
+        await _sut.ConfirmAsync(withDiscount.Id);
+        await _sut.ToggleIncentiveConfirmationAsync(withDiscount.Id, discountId); // still allowed once locked
 
-        Assert.True((await _sut.GetByIdAsync(withSf.Id)).SfConfirmed);
+        Assert.True((await _sut.GetByIdAsync(withDiscount.Id)).Incentives.Single().Confirmed);
     }
 
     [Fact]
-    public async Task Warehouse_users_cannot_confirm_or_toggle_sf()
+    public async Task Saving_a_quote_keeps_the_customer_acceptance_and_applies_scheme_defaults()
     {
-        var created = await _sut.CreateAsync(Request(sfRequested: true));
+        var deductionId = SchemeId(IncentiveSchemeDefaults.EnergyTaxDeduction);
+        _schemes[IncentiveSchemeDefaults.EnergyTaxDeduction].DefaultAmount = 120m;
+        await _db.SaveChangesAsync();
+        var created = await _sut.CreateAsync(Request(Discount));
+        await _sut.ToggleIncentiveConfirmationAsync(created.Id, Discount.IncentiveSchemeId);
+
+        var updated = await _sut.UpdateAsync(created.Id, Request(Discount, new QuoteIncentiveInput(deductionId)));
+
+        Assert.True(updated.Incentives.Single(i => i.IncentiveSchemeId == Discount.IncentiveSchemeId).Confirmed);
+        Assert.Equal(120m, updated.Incentives.Single(i => i.IncentiveSchemeId == deductionId).Amount);
+    }
+
+    [Fact]
+    public async Task Line_schemes_go_on_lines_and_quote_schemes_on_the_quote()
+    {
+        var warrantyId = SchemeId(IncentiveSchemeDefaults.AllInclusiveWarranty);
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(Request(new QuoteIncentiveInput(warrantyId))));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(Request([Discount.IncentiveSchemeId])));
+
+        var created = await _sut.CreateAsync(Request([warrantyId]));
+        var line = created.Products.Single().Incentives.Single();
+        Assert.Equal(80m, line.Amount); // 8% of the 1000 list price
+        Assert.Equal(1080m, created.FinalPrice); // warranty on the machines side; Exempt VAT, no indoor unit
+    }
+
+    [Fact]
+    public async Task Only_one_invoice_discount_and_no_newly_added_inactive_scheme()
+    {
+        var second = new IncentiveScheme
+        {
+            Code = "INVOICE_DISCOUNT_65", Label = "65%", Kind = IncentiveKinds.InvoiceDiscount, Threshold = 1000m,
+            RateBelowThreshold = 1.2m, RateAboveThreshold = 1.1m, RoundingStep = 10m, Percent = 35m,
+        };
+        var retired = new IncentiveScheme { Code = "OLD_FEE", Label = "Old fee", Kind = IncentiveKinds.QuoteAmount, Active = false };
+        _db.IncentiveSchemes.AddRange(second, retired);
+        await _db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(Request(Discount, new QuoteIncentiveInput(second.Id))));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(Request(new QuoteIncentiveInput(retired.Id))));
+    }
+
+    [Fact]
+    public async Task Warehouse_users_cannot_confirm_or_toggle_an_incentive()
+    {
+        var created = await _sut.CreateAsync(Request(Discount));
         var asWarehouse = new QuoteService(_db, new QuoteNumberingService(_db), new QuotePricingService(_db),
             new FakeCurrentUser("stock@example.com", "user-2", UserRole.Warehouse));
 
         await Assert.ThrowsAsync<ForbiddenException>(() => asWarehouse.ConfirmAsync(created.Id));
-        await Assert.ThrowsAsync<ForbiddenException>(() => asWarehouse.ToggleSfConfirmationAsync(created.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(() => asWarehouse.ToggleIncentiveConfirmationAsync(created.Id, Discount.IncentiveSchemeId));
         Assert.Equal(QuoteStatusCodes.Draft, (await _sut.GetByIdAsync(created.Id)).CurrentStatus);
     }
 

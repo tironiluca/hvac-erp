@@ -30,8 +30,10 @@ The dev build expects the API on `http://localhost:5299` — see the root README
 - **Dates**: send date-only values with `toLocalDateTimeIso()` (`core/utils/date.util.ts`), never
   `toISOString()`, which shifts the calendar day in positive-UTC offsets.
 - **Pricing preview**: `features/quotes/quote-price-estimate.ts` mirrors the server's
-  `QuotePricingService` and reads VAT multipliers from `GET /api/lookups/vat-options`. Change both
-  sides together; `quote-price-estimate.spec.ts` uses the same cases as the backend tests.
+  `QuotePricingService`: VAT multipliers from `GET /api/lookups/vat-options` and the incentive-scheme
+  calculations (line amounts, charged quote amounts, the invoice discount) from
+  `GET /api/lookups/incentive-schemes`. Change both sides together; `quote-price-estimate.spec.ts`
+  uses the same cases as the backend tests.
 - **Theme**: `styles.scss` defines the Material 3 theme and emits the `--mat-sys-*` colour and
   typography tokens that the shared `.hvac-*` primitives use. `BrandingService` re-derives the colour
   tokens at runtime from the admin-edited brand seeds.

@@ -1,4 +1,6 @@
 using HvacErp.Application.Common;
+using HvacErp.Application.Dtos;
+using HvacErp.Application.Pricing;
 using HvacErp.Application.Services;
 using HvacErp.Application.Tests.Support;
 using HvacErp.Domain.Entities;
@@ -12,12 +14,14 @@ public class QuotePricingServiceTests
     private readonly AppDbContext _db = TestDb.Create();
     private readonly QuotePricingService _sut;
     private readonly ProductPriceList _plainList;
+    private readonly Dictionary<string, IncentiveScheme> _schemes;
 
     public QuotePricingServiceTests()
     {
         TestDb.SeedVatOptions(_db);
         TestDb.SeedBaseInstallationItems(_db);
         _plainList = TestDb.AddPriceList(_db);
+        _schemes = TestDb.SeedIncentiveSchemes(_db);
         _db.SaveChanges();
         _sut = new QuotePricingService(_db);
     }
@@ -46,6 +50,20 @@ public class QuotePricingServiceTests
         return quote;
     }
 
+    private QuoteIncentive AddIncentive(Quote quote, string code, decimal? amount = null)
+    {
+        var incentive = new QuoteIncentive { IncentiveSchemeId = _schemes[code].Id, Amount = amount };
+        quote.Incentives.Add(incentive);
+        return incentive;
+    }
+
+    private IncentiveScheme AddScheme(IncentiveScheme scheme)
+    {
+        _db.IncentiveSchemes.Add(scheme);
+        _db.SaveChanges();
+        return scheme;
+    }
+
     [Fact]
     public async Task Exempt_vat_passes_machines_plus_installation_through_untouched()
     {
@@ -58,7 +76,6 @@ public class QuotePricingServiceTests
         Assert.Equal(1300m, quote.MachinesPrice);
         Assert.Equal(400m, quote.InstallationPrice); // "Mono" base system price
         Assert.Equal(1700m, quote.FinalPrice);
-        Assert.Null(quote.SfPrice);
     }
 
     [Fact]
@@ -178,18 +195,55 @@ public class QuotePricingServiceTests
     }
 
     [Fact]
-    public async Task Quantity_multiplies_net_price_and_warranty_is_added_per_line()
+    public async Task Quantity_multiplies_net_price_and_a_percentage_line_scheme_is_added_per_unit()
     {
         var quote = QuoteWith(VatCodes.Exempt,
             (External(1000m), ProductRole.ExternalUnit, 1),
             (Internal(300m), ProductRole.InternalUnit, 2));
         var internalLine = quote.Products.Single(p => p.Role == ProductRole.InternalUnit);
-        internalLine.Warranty = true;
-        internalLine.WarrantyPrice = 75m;
+        var warranty = new QuoteProductIncentive { IncentiveSchemeId = _schemes[IncentiveSchemeDefaults.AllInclusiveWarranty].Id };
+        internalLine.Incentives.Add(warranty);
 
         await _sut.PriceAsync(quote);
 
-        Assert.Equal(1000m + 600m + 75m, quote.MachinesPrice);
+        // Warranty: 8% of the 300 list price, per unit → 24 × 2 = 48, on the machines side.
+        Assert.Equal(48m, warranty.Amount);
+        Assert.Equal(1000m + 600m + 48m, quote.MachinesPrice);
+    }
+
+    [Fact]
+    public async Task A_fixed_line_scheme_that_is_not_charged_is_only_recorded()
+    {
+        var cover = AddScheme(new IncentiveScheme
+        {
+            Code = "FREE_CHECKUP", Label = "Free check-up", Kind = IncentiveKinds.LineAmount, DefaultAmount = 20m, AddToPrice = false,
+        });
+        var quote = QuoteWith(VatCodes.Exempt, (External(1000m), ProductRole.ExternalUnit, 3));
+        var line = new QuoteProductIncentive { IncentiveSchemeId = cover.Id };
+        quote.Products.Single().Incentives.Add(line);
+
+        await _sut.PriceAsync(quote);
+
+        Assert.Equal(60m, line.Amount);
+        Assert.Equal(3000m, quote.MachinesPrice);
+    }
+
+    [Fact]
+    public async Task A_charged_quote_amount_is_added_after_vat_and_a_display_only_one_is_not()
+    {
+        var fee = AddScheme(new IncentiveScheme
+        {
+            Code = "SURVEY_FEE", Label = "Survey fee", Kind = IncentiveKinds.QuoteAmount, DefaultAmount = 80m, AddToPrice = true,
+        });
+        var quote = QuoteWith(VatCodes.Reduced10, (External(1000m, maxBtu: null), ProductRole.ExternalUnit, 1));
+        quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = fee.Id, Amount = 80m });
+        AddIncentive(quote, IncentiveSchemeDefaults.WeeeTakeBack, 45m);
+
+        await _sut.PriceAsync(quote);
+
+        // 1000 × 1.1 = 1100 (no indoor unit, so no base installation), + 80 charged after VAT;
+        // the WEEE amount is display-only.
+        Assert.Equal(1180m, quote.FinalPrice);
     }
 
     [Fact]
@@ -314,28 +368,28 @@ public class QuotePricingServiceTests
         var quote = QuoteWith(VatCodes.Reduced10,
             (External(1000m), ProductRole.ExternalUnit, 1),
             (Internal(300m), ProductRole.InternalUnit, 1));
-        quote.SfRequested = true;
+        var discount = AddIncentive(quote, IncentiveSchemeDefaults.InvoiceDiscount50);
 
         await _sut.PriceAsync(quote);
 
-        // basis 1870 × 1.3 = 2431 → next €50 = 2450
-        Assert.Equal(2450m, quote.SfPrice);
+        // basis 1870 × 1.3 = 2431 → next €50 = 2450; the customer pays 50%
+        Assert.Equal(2450m, discount.Amount);
+        Assert.Equal(1225m, discount.CustomerAmount());
     }
 
     [Fact]
     public async Task Sf_price_basis_adds_back_manual_discount_and_includes_enea()
     {
         var quote = QuoteWith(VatCodes.Reduced10, (External(2000m, maxBtu: null), ProductRole.ExternalUnit, 1));
-        quote.SfRequested = true;
+        var discount = AddIncentive(quote, IncentiveSchemeDefaults.InvoiceDiscount50);
         quote.ManualDiscount = -200m;
-        quote.EneaEligible = true;
-        quote.EneaPrice = 100m;
+        AddIncentive(quote, IncentiveSchemeDefaults.EnergyTaxDeduction, 100m);
 
         await _sut.PriceAsync(quote);
 
         // Final = 2200 − 200 = 2000; basis = 2000 + 200 + 100 = 2300 ≥ 2000 → × 1.2 = 2760 → 2800
         Assert.Equal(2000m, quote.FinalPrice);
-        Assert.Equal(2800m, quote.SfPrice);
+        Assert.Equal(2800m, discount.Amount);
     }
 
     [Fact]
@@ -344,26 +398,45 @@ public class QuotePricingServiceTests
         _db.VatOptions.Add(new VatOption { Code = "Flat1", Label = "Flat ×1", BlendShape = VatBlendShapes.Flat, MachinesMultiplier = 1m });
         _db.SaveChanges();
         var quote = QuoteWith("Flat1", (External(2500m, maxBtu: null), ProductRole.ExternalUnit, 1));
-        quote.SfRequested = true;
+        var discount = AddIncentive(quote, IncentiveSchemeDefaults.InvoiceDiscount50);
 
         await _sut.PriceAsync(quote);
 
         // 2500 × 1.2 = 3000 (exact multiple) → legacy still adds 50
-        Assert.Equal(3050m, quote.SfPrice);
+        Assert.Equal(3050m, discount.Amount);
     }
 
     [Fact]
-    public async Task Sf_price_is_null_when_not_requested_or_vat_exempt()
+    public async Task Invoice_discount_is_null_on_a_vat_exempt_quote()
     {
-        var notRequested = QuoteWith(VatCodes.Standard22, (External(1000m), ProductRole.ExternalUnit, 1));
-        await _sut.PriceAsync(notRequested);
-
         var exempt = QuoteWith(VatCodes.Exempt, (External(1000m), ProductRole.ExternalUnit, 1));
-        exempt.SfRequested = true;
+        var discount = AddIncentive(exempt, IncentiveSchemeDefaults.InvoiceDiscount50, amount: 999m);
+
         await _sut.PriceAsync(exempt);
 
-        Assert.Null(notRequested.SfPrice);
-        Assert.Null(exempt.SfPrice);
+        Assert.Null(discount.Amount);
+        Assert.Null(discount.CustomerAmount());
+    }
+
+    [Fact]
+    public async Task Invoice_discount_follows_the_rates_threshold_step_and_share_on_its_row()
+    {
+        var custom = AddScheme(new IncentiveScheme
+        {
+            Code = "INVOICE_DISCOUNT_65", Label = "65% invoice discount", Kind = IncentiveKinds.InvoiceDiscount,
+            Threshold = 5000m, RateBelowThreshold = 1.5m, RateAboveThreshold = 1.4m, RoundingStep = 100m, Percent = 35m,
+            RequiresVat = true,
+        });
+        var quote = QuoteWith(VatCodes.Reduced10, (External(2000m, maxBtu: null), ProductRole.ExternalUnit, 1));
+        var discount = new QuoteIncentive { IncentiveSchemeId = custom.Id };
+        quote.Incentives.Add(discount);
+
+        await _sut.PriceAsync(quote);
+
+        // Final 2000 × 1.1 = 2200 < 5000 → × 1.5 = 3300, an exact multiple, so a full step is still
+        // added (legacy rule) → 3400; the customer pays 35% = 1190.
+        Assert.Equal(3400m, discount.Amount);
+        Assert.Equal(1190m, discount.CustomerAmount());
     }
 
     [Fact]

@@ -107,3 +107,31 @@ export interface Product {
 
 /** Stored `Product.category` values (backend `ProductCategories`). */
 export type ProductCategory = 'Outdoor' | 'Indoor';
+
+/** The built-in calculations an incentive scheme can use (backend `IncentiveKinds`). */
+export type IncentiveKind = 'QuoteAmount' | 'LineAmount' | 'InvoiceDiscount';
+
+/**
+ * A tax incentive, fee, invoice discount or per-line option, with its calculation parameters
+ * (`GET /api/lookups/incentive-schemes`). The quote form's price preview mirrors the server
+ * calculation from these fields.
+ */
+export interface IncentiveScheme {
+  id: number;
+  code: string;
+  label: string;
+  description?: string | null;
+  kind: IncentiveKind;
+  defaultAmount?: number | null;
+  /** LineAmount: % of the list price per unit. InvoiceDiscount: the share the customer pays. */
+  percent?: number | null;
+  addToPrice: boolean;
+  includeInInvoiceDiscountBasis: boolean;
+  requiresVat: boolean;
+  requiresConfirmation: boolean;
+  threshold?: number | null;
+  rateBelowThreshold?: number | null;
+  rateAboveThreshold?: number | null;
+  roundingStep?: number | null;
+  sortOrder: number;
+}

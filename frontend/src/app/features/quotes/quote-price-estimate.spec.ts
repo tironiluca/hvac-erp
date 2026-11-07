@@ -1,4 +1,4 @@
-import { Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
+import { IncentiveScheme, Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
 import {
   applyDiscountLadder,
   baseSystemCode,
@@ -55,7 +55,13 @@ function form(extra: Partial<EstimateFormValue> = {}): EstimateFormValue {
 
 describe('estimateQuotePrice', () => {
   it('passes machines + installation through untouched when VAT-exempt', () => {
-    expect(estimateQuotePrice(form(), catalog())).toEqual({ machinesPrice: 1300, installationPrice: 400, finalPrice: 1700, warning: undefined });
+    expect(estimateQuotePrice(form(), catalog())).toEqual({
+      machinesPrice: 1300,
+      installationPrice: 400,
+      finalPrice: 1700,
+      invoiceDiscount: undefined,
+      warning: undefined,
+    });
   });
 
   it('applies the Split blend from the VAT lookup row', () => {
@@ -179,5 +185,59 @@ describe('pricing helpers', () => {
 
   it('passes totals through for an unknown VAT code', () => {
     expect(blendVat('Nope', 100, 50, vatOptions)).toBe(150);
+  });
+});
+
+// Mirrors the backend QuotePricingServiceTests incentive cases.
+describe('incentive schemes', () => {
+  const base = { description: null, addToPrice: false, includeInInvoiceDiscountBasis: false, requiresVat: false, requiresConfirmation: false, sortOrder: 0 };
+  const warranty: IncentiveScheme = { ...base, id: 40, code: 'WARRANTY', label: 'Warranty', kind: 'LineAmount', percent: 8, addToPrice: true };
+  const deduction: IncentiveScheme = { ...base, id: 10, code: 'DEDUCTION', label: 'Deduction', kind: 'QuoteAmount', includeInInvoiceDiscountBasis: true };
+  const fee: IncentiveScheme = { ...base, id: 20, code: 'FEE', label: 'Fee', kind: 'QuoteAmount', defaultAmount: 80, addToPrice: true };
+  const discount: IncentiveScheme = {
+    ...base, id: 30, code: 'DISCOUNT', label: 'Invoice discount', kind: 'InvoiceDiscount', percent: 50,
+    threshold: 2000, rateBelowThreshold: 1.3, rateAboveThreshold: 1.2, roundingStep: 50, requiresVat: true, requiresConfirmation: true,
+  };
+  const schemes = catalog({ incentiveSchemes: [warranty, deduction, fee, discount] });
+  const pick = (id: number, amount: number | null = null) => ({ incentiveSchemeId: id, selected: true, amount });
+
+  it('adds a percentage line scheme per unit on the machines side', () => {
+    const result = estimateQuotePrice(form({ internalUnits: [{ productId: internal.id, quantity: 2, incentiveSchemeIds: [warranty.id] }] }), schemes);
+
+    // 1000 + 2 × 300 + warranty 8% × 300 × 2 = 48; base install for one line is 400.
+    expect(result.machinesPrice).toBe(1648);
+    expect(result.finalPrice).toBe(2048);
+  });
+
+  it('charges a quote amount after VAT, defaulting to the scheme amount', () => {
+    const result = estimateQuotePrice(form({ vat: 'Reduced10', internalUnits: [], incentives: [pick(fee.id)] }), schemes);
+
+    // 1000 × 1.1 = 1100, + 80 (no indoor unit, so no base installation).
+    expect(result.finalPrice).toBeCloseTo(1180, 6);
+  });
+
+  it('grosses the invoice discount from the basis, adding back the manual discount and flagged amounts', () => {
+    const result = estimateQuotePrice(
+      form({ vat: 'Reduced10', internalUnits: [], manualDiscount: -200, incentives: [pick(discount.id), pick(deduction.id, 100)] }),
+      catalog({ products: [product(1, 2000)], incentiveSchemes: [deduction, discount] }),
+    );
+
+    // Final = 2200 − 200 = 2000; basis = 2000 + 200 + 100 = 2300 ≥ 2000 → × 1.2 = 2760 → 2800; customer pays 50%.
+    expect(result.finalPrice).toBe(2000);
+    expect(result.invoiceDiscount).toEqual({ schemeId: discount.id, grossedTotal: 2800, customerAmount: 1400 });
+  });
+
+  it('adds a full rounding step on an exact multiple, like legacy', () => {
+    const result = estimateQuotePrice(
+      form({ vat: 'Reduced10', internalUnits: [], incentives: [pick(discount.id)] }),
+      catalog({ products: [product(1, 2500)], incentiveSchemes: [discount] }),
+    );
+
+    // 2500 × 1.1 = 2750 ≥ 2000 → × 1.2 = 3300 (exact) → 3350.
+    expect(result.invoiceDiscount?.grossedTotal).toBeCloseTo(3350, 6);
+  });
+
+  it('offers no invoice discount on a VAT-exempt quote when the scheme needs VAT', () => {
+    expect(estimateQuotePrice(form({ incentives: [pick(discount.id)] }), schemes).invoiceDiscount).toBeUndefined();
   });
 });

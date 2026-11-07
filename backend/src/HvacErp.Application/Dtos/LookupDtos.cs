@@ -26,6 +26,29 @@ public record ExtraTypeDto(
     bool ExcludedFromVat,
     int SortOrder);
 
+/// <summary>
+/// An incentive scheme with its calculation (<see cref="Domain.Entities.IncentiveScheme"/>). The quote
+/// wizard offers quote-level schemes on the quote and <c>LineAmount</c> schemes on each product line,
+/// and its live price preview mirrors the server calculation from these parameters.
+/// </summary>
+public record IncentiveSchemeDto(
+    int Id,
+    string Code,
+    string Label,
+    string? Description,
+    string Kind,
+    decimal? DefaultAmount,
+    decimal? Percent,
+    bool AddToPrice,
+    bool IncludeInInvoiceDiscountBasis,
+    bool RequiresVat,
+    bool RequiresConfirmation,
+    decimal? Threshold,
+    decimal? RateBelowThreshold,
+    decimal? RateAboveThreshold,
+    decimal? RoundingStep,
+    int SortOrder);
+
 /// <summary>A row from one of the Phase 8c enum-replacement lookup tables.</summary>
 public record LookupItemDto(string Code, string Label, string? Description, string? Color, int SortOrder);
 
