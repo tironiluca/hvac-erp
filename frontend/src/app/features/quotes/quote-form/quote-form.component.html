@@ -1,0 +1,482 @@
+<div class="quote-form">
+  @if (loading()) {
+    <div class="quote-form__loading">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else {
+    <div class="quote-form__header">
+      <button mat-icon-button routerLink="/quotes" [matTooltip]="'common.cancel' | transloco">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      @if (quote(); as q) {
+        <h1>{{ 'quotes.detailTitle' | transloco }} — {{ quoteLabel(q) }}</h1>
+        <mat-chip [class]="'status-chip status-chip--' + statusKey(q)">
+          {{ 'quotes.statuses.' + statusKey(q) | transloco }}
+        </mat-chip>
+      } @else {
+        <h1>{{ 'quotes.newTitle' | transloco }}</h1>
+      }
+    </div>
+
+    @if (quote()?.confirmed) {
+      <div class="quote-form__confirmed-banner">
+        <mat-icon>lock</mat-icon>
+        <span>{{ 'quotes.confirmedNotice' | transloco }}</span>
+        <button mat-stroked-button type="button" (click)="newRevisionForClient()">{{ 'quotes.newRevision' | transloco }}</button>
+      </div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <mat-stepper [orientation]="stepperOrientation()" [linear]="false">
+        <mat-step [label]="'quotes.steps.client' | transloco">
+          <div class="form-grid">
+            <mat-form-field appearance="outline" class="span-2">
+              <mat-label>{{ 'quotes.client' | transloco }}</mat-label>
+              <input
+                matInput
+                [formControl]="clientControl"
+                [matAutocomplete]="clientAuto"
+                [placeholder]="'quotes.clientHint' | transloco"
+              />
+              <mat-autocomplete #clientAuto="matAutocomplete" [displayWith]="displayClient" (optionSelected)="onClientSelected($event)">
+                @for (option of clientOptions(); track option.id) {
+                  <mat-option [value]="option">{{ option.fullName }} ({{ option.code }})</mat-option>
+                }
+              </mat-autocomplete>
+              @if (clientControl.invalid && clientControl.touched) {
+                <mat-error>{{ 'quotes.clientRequired' | transloco }}</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'quotes.operator' | transloco }}</mat-label>
+              <mat-select formControlName="operatorId">
+                <mat-option [value]="null"></mat-option>
+                @for (op of operators(); track op.id) {
+                  <mat-option [value]="op.id">{{ op.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'quotes.department' | transloco }}</mat-label>
+              <mat-select formControlName="department">
+                @for (dept of departments(); track dept.code) {
+                  <mat-option [value]="dept.code">{{ 'quotes.departments.' + dept.code | transloco }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-checkbox formControlName="predisposed">{{ 'quotes.predisposed' | transloco }}</mat-checkbox>
+
+            <mat-checkbox formControlName="eneaEligible">{{ 'quotes.eneaEligible' | transloco }}</mat-checkbox>
+            @if (formValue().eneaEligible) {
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'quotes.eneaPrice' | transloco }}</mat-label>
+                <input matInput type="number" formControlName="eneaPrice" />
+              </mat-form-field>
+            }
+
+            <mat-checkbox formControlName="raeeEligible">{{ 'quotes.raeeEligible' | transloco }}</mat-checkbox>
+            @if (formValue().raeeEligible) {
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'quotes.raeePrice' | transloco }}</mat-label>
+                <input matInput type="number" formControlName="raeePrice" />
+              </mat-form-field>
+            }
+
+            <p class="quote-form__section-hint span-2">{{ 'quotes.installationSiteHint' | transloco }}</p>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'quotes.installationAddress' | transloco }}</mat-label>
+              <input matInput formControlName="installationAddress" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'quotes.installationCity' | transloco }}</mat-label>
+              <input matInput formControlName="installationCity" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="span-2">
+              <mat-label>{{ 'quotes.installationPositionNotes' | transloco }}</mat-label>
+              <textarea matInput rows="2" formControlName="installationPositionNotes"></textarea>
+            </mat-form-field>
+          </div>
+
+          <div class="step-actions">
+            <button mat-flat-button color="primary" matStepperNext type="button">{{ 'common.next' | transloco }}</button>
+          </div>
+        </mat-step>
+
+        <mat-step [label]="'quotes.steps.externalUnit' | transloco">
+          <div formGroupName="externalUnit" class="form-grid">
+            <mat-form-field appearance="outline" class="span-2">
+              <mat-label>{{ 'quotes.externalUnit' | transloco }}</mat-label>
+              <mat-select formControlName="productId">
+                @for (p of externalProducts(); track p.id) {
+                  <mat-option [value]="p.id">{{ p.brand }} {{ p.model }} — {{ p.refrigerantGas }} — {{ p.maxBtu }} BTU</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'quotes.quantity' | transloco }}</mat-label>
+              <input matInput type="number" formControlName="quantity" />
+            </mat-form-field>
+
+            <mat-checkbox formControlName="warranty">{{ 'quotes.warranty' | transloco }}</mat-checkbox>
+          </div>
+
+          <div class="step-actions">
+            <button mat-button matStepperPrevious type="button">{{ 'common.back' | transloco }}</button>
+            <button mat-flat-button color="primary" matStepperNext type="button">{{ 'common.next' | transloco }}</button>
+          </div>
+        </mat-step>
+
+        <mat-step [label]="'quotes.steps.internalUnits' | transloco">
+          @if (estimate().warning) {
+            <div class="warning-banner">
+              <mat-icon>warning</mat-icon>
+              {{ 'quotes.warnings.' + estimate().warning | transloco }}
+            </div>
+          }
+
+          <div formArrayName="internalUnits" class="repeatable-list">
+            @for (control of form.controls.internalUnits.controls; track control; let i = $index) {
+              <div [formGroupName]="i" class="repeatable-row">
+                <mat-form-field appearance="outline" class="grow">
+                  <mat-label>{{ 'quotes.internalUnit' | transloco }}</mat-label>
+                  <mat-select formControlName="productId">
+                    @for (p of internalProducts(); track p.id) {
+                      <mat-option [value]="p.id">{{ p.brand }} {{ p.model }} — {{ p.refrigerantGas }} — {{ p.power }} BTU</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'quotes.quantity' | transloco }}</mat-label>
+                  <input matInput type="number" formControlName="quantity" />
+                </mat-form-field>
+                <mat-checkbox formControlName="warranty">{{ 'quotes.warranty' | transloco }}</mat-checkbox>
+                <button mat-icon-button type="button" (click)="removeInternalUnit(i)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+          <button mat-stroked-button type="button" (click)="addInternalUnit()">
+            <mat-icon>add</mat-icon>
+            {{ 'quotes.addInternalUnit' | transloco }}
+          </button>
+
+          <div class="step-actions">
+            <button mat-button matStepperPrevious type="button">{{ 'common.back' | transloco }}</button>
+            <button mat-flat-button color="primary" matStepperNext type="button">{{ 'common.next' | transloco }}</button>
+          </div>
+        </mat-step>
+
+        <mat-step [label]="'quotes.steps.ductedUnits' | transloco">
+          <div formArrayName="ductedUnits" class="repeatable-list">
+            @for (control of form.controls.ductedUnits.controls; track control; let i = $index) {
+              <div [formGroupName]="i" class="ducted-row">
+                <div class="form-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>{{ 'quotes.ducted.cloudQuantity' | transloco }}</mat-label>
+                    <input matInput type="number" formControlName="cloudQuantity" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>{{ 'quotes.ducted.plenumQuantity' | transloco }}</mat-label>
+                    <input matInput type="number" formControlName="plenumQuantity" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>{{ 'quotes.ducted.remoteQuantity' | transloco }}</mat-label>
+                    <input matInput type="number" formControlName="remoteQuantity" />
+                  </mat-form-field>
+
+                  <mat-checkbox formControlName="hasFlexibleHose">{{ 'quotes.ducted.hasFlexibleHose' | transloco }}</mat-checkbox>
+                  <mat-form-field appearance="outline">
+                    <mat-label>{{ 'quotes.ducted.flexibleHoseQuantity' | transloco }}</mat-label>
+                    <input matInput type="number" formControlName="flexibleHoseQuantity" />
+                  </mat-form-field>
+
+                  <mat-checkbox formControlName="hasRigidHose">{{ 'quotes.ducted.hasRigidHose' | transloco }}</mat-checkbox>
+                  <mat-form-field appearance="outline">
+                    <mat-label>{{ 'quotes.ducted.rigidHoseQuantity' | transloco }}</mat-label>
+                    <input matInput type="number" formControlName="rigidHoseQuantity" />
+                  </mat-form-field>
+                </div>
+
+                <h4 class="ducted-row__subhead">{{ 'quotes.ducted.outlets' | transloco }}</h4>
+                <div formArrayName="outlets" class="repeatable-list">
+                  @for (outlet of control.controls.outlets.controls; track outlet; let j = $index) {
+                    <div [formGroupName]="j" class="repeatable-row">
+                      <mat-form-field appearance="outline" class="grow">
+                        <mat-label>{{ 'quotes.ducted.systemType' | transloco }}</mat-label>
+                        <mat-select formControlName="systemType">
+                          @for (type of ductSystemTypes(); track type.code) {
+                            <mat-option [value]="type.code">
+                              {{ 'quotes.ductSystemTypes.' + type.code | transloco }}
+                            </mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                      <mat-form-field appearance="outline">
+                        <mat-label>{{ 'quotes.ducted.ventCount' | transloco }}</mat-label>
+                        <input matInput type="number" formControlName="ventCount" />
+                      </mat-form-field>
+                      <button
+                        mat-icon-button
+                        type="button"
+                        (click)="removeOutlet(i, j)"
+                        [disabled]="control.controls.outlets.length <= 1"
+                      >
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    </div>
+                  }
+                </div>
+                <button mat-stroked-button type="button" (click)="addOutlet(i)">
+                  <mat-icon>add</mat-icon>
+                  {{ 'quotes.ducted.addOutlet' | transloco }}
+                </button>
+
+                <button mat-stroked-button color="warn" type="button" class="ducted-row__remove" (click)="removeDuctedUnit(i)">
+                  <mat-icon>delete</mat-icon>
+                  {{ 'quotes.ducted.remove' | transloco }}
+                </button>
+              </div>
+            }
+          </div>
+          <button mat-stroked-button type="button" (click)="addDuctedUnit()">
+            <mat-icon>add</mat-icon>
+            {{ 'quotes.ducted.add' | transloco }}
+          </button>
+
+          <div class="step-actions">
+            <button mat-button matStepperPrevious type="button">{{ 'common.back' | transloco }}</button>
+            <button mat-flat-button color="primary" matStepperNext type="button">{{ 'common.next' | transloco }}</button>
+          </div>
+        </mat-step>
+
+        <mat-step [label]="'quotes.steps.extras' | transloco">
+          <div class="quote-form__sections">
+            <mat-card class="hvac-card" appearance="outlined" formArrayName="extras">
+              <h3 class="hvac-card__title">{{ 'quotes.extrasAccessories' | transloco }}</h3>
+              <div class="checkbox-grid">
+                @for (extra of form.controls.extras.controls; track extra.controls.extraTypeId.value; let i = $index) {
+                  @if (!extra.controls.quantityBased.value) {
+                    <div [formGroupName]="i">
+                      <mat-checkbox formControlName="selected">{{ extra.controls.label.value }}</mat-checkbox>
+                    </div>
+                  }
+                }
+              </div>
+
+              <h3 class="hvac-card__title">{{ 'quotes.extrasQuantities' | transloco }}</h3>
+              <div class="form-grid">
+                @for (extra of form.controls.extras.controls; track extra.controls.extraTypeId.value; let i = $index) {
+                  @if (extra.controls.quantityBased.value) {
+                    <mat-form-field appearance="outline" [formGroupName]="i">
+                      <mat-label>{{ extra.controls.label.value }}</mat-label>
+                      <input matInput type="number" min="0" formControlName="quantity" />
+                    </mat-form-field>
+                  }
+                }
+              </div>
+            </mat-card>
+
+            <mat-card class="hvac-card" appearance="outlined">
+              <h3 class="hvac-card__title">{{ 'quotes.extrasVatDiscount' | transloco }}</h3>
+              <div class="form-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'quotes.vat' | transloco }}</mat-label>
+                  <mat-select formControlName="vat">
+                    @for (option of vatOptions(); track option.code) {
+                      <mat-option [value]="option.code">{{ 'quotes.vatOptions.' + option.code | transloco }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'quotes.manualDiscount' | transloco }}</mat-label>
+                  <input matInput type="number" formControlName="manualDiscount" />
+                </mat-form-field>
+
+                <mat-checkbox formControlName="sfRequested" class="span-2">{{ 'quotes.sfRequested' | transloco }}</mat-checkbox>
+                @if (formValue().sfRequested && formValue().vat === 'Exempt') {
+                  <p class="quote-form__section-hint span-2">{{ 'quotes.sfNeedsVat' | transloco }}</p>
+                }
+              </div>
+            </mat-card>
+
+            <mat-card class="hvac-card" appearance="outlined">
+              <h3 class="hvac-card__title">{{ 'quotes.serviceItems' | transloco }}</h3>
+              <div formArrayName="serviceItems" class="repeatable-list">
+                @for (control of form.controls.serviceItems.controls; track control; let i = $index) {
+                  <div [formGroupName]="i" class="repeatable-row">
+                    <mat-form-field appearance="outline" class="grow">
+                      <mat-label>{{ 'quotes.serviceItem' | transloco }}</mat-label>
+                      <mat-select formControlName="serviceItemId">
+                        @for (s of serviceItemsList(); track s.id) {
+                          <mat-option [value]="s.id">{{ s.name }} ({{ s.price | number: '1.2-2' }} €)</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>{{ 'quotes.quantity' | transloco }}</mat-label>
+                      <input matInput type="number" formControlName="quantity" />
+                    </mat-form-field>
+                    <button mat-icon-button type="button" (click)="removeServiceItem(i)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+              <button mat-stroked-button type="button" (click)="addServiceItem()">
+                <mat-icon>add</mat-icon>
+                {{ 'quotes.addServiceItem' | transloco }}
+              </button>
+            </mat-card>
+          </div>
+
+          <div class="step-actions">
+            <button mat-button matStepperPrevious type="button">{{ 'common.back' | transloco }}</button>
+            <button mat-flat-button color="primary" matStepperNext type="button">{{ 'common.next' | transloco }}</button>
+          </div>
+        </mat-step>
+
+        <mat-step [label]="'quotes.steps.floorPlan' | transloco">
+          <hvac-floor-plan-sketch formControlName="floorPlanSketch" />
+
+          <div class="step-actions">
+            <button mat-button matStepperPrevious type="button">{{ 'common.back' | transloco }}</button>
+            <button mat-flat-button color="primary" matStepperNext type="button">{{ 'common.next' | transloco }}</button>
+          </div>
+        </mat-step>
+
+        <mat-step [label]="'quotes.steps.summary' | transloco">
+          <div class="summary-card">
+            <h3>{{ (quote() ? 'quotes.finalPricing' : 'quotes.estimate') | transloco }}</h3>
+            @if (!quote()) {
+              <p class="summary-card__hint">{{ 'quotes.estimateHint' | transloco }}</p>
+            }
+            <div class="summary-row">
+              <span>{{ 'quotes.machinesPrice' | transloco }}</span>
+              <span>{{ (quote()?.machinesPrice ?? estimate().machinesPrice) | number: '1.2-2' }} €</span>
+            </div>
+            <div class="summary-row">
+              <span>{{ 'quotes.installationPrice' | transloco }}</span>
+              <span>{{ (quote()?.installationPrice ?? estimate().installationPrice) | number: '1.2-2' }} €</span>
+            </div>
+            <div class="summary-row summary-row--total">
+              <span>{{ 'quotes.finalPrice' | transloco }}</span>
+              <span>{{ (quote()?.finalPrice ?? estimate().finalPrice) | number: '1.2-2' }} €</span>
+            </div>
+
+            @if (quote()?.raeeEligible ?? formValue().raeeEligible) {
+              <div class="summary-row summary-row--muted">
+                <span>{{ 'quotes.raeePriceSummary' | transloco }}</span>
+                <span>{{ (quote()?.raeePrice ?? formValue().raeePrice ?? 0) | number: '1.2-2' }} €</span>
+              </div>
+            }
+
+            @if (quote()?.sfRequested && quote()?.sfPrice != null) {
+              <div class="summary-row">
+                <span>{{ 'quotes.sfGrossTotal' | transloco }}</span>
+                <span class="summary-row__strike">{{ quote()!.sfPrice! | number: '1.2-2' }} €</span>
+              </div>
+              <div class="summary-row summary-row--total">
+                <span>{{ 'quotes.sfToPay' | transloco }}</span>
+                <span>{{ quote()!.sfPrice! / 2 | number: '1.2-2' }} €</span>
+              </div>
+              <p class="summary-card__hint">
+                {{ (quote()!.sfConfirmed ? 'quotes.sfConfirmedYes' : 'quotes.sfConfirmedNo') | transloco }}
+              </p>
+            }
+          </div>
+
+          @if (!quote()?.confirmed) {
+            <div class="step-actions">
+              <button mat-button matStepperPrevious type="button">{{ 'common.back' | transloco }}</button>
+              <button mat-flat-button color="primary" type="submit" [disabled]="saving()">
+                @if (saving()) {
+                  <mat-spinner diameter="20" />
+                } @else {
+                  {{ (quoteId() ? 'common.save' : 'quotes.create') | transloco }}
+                }
+              </button>
+            </div>
+          }
+        </mat-step>
+      </mat-stepper>
+    </form>
+
+    @if (quote(); as q) {
+      <div class="quote-form__workflow">
+        <h2>{{ 'quotes.workflow' | transloco }}</h2>
+        <div class="quote-form__actions">
+          <button mat-stroked-button type="button" [disabled]="q.surveyDone || q.confirmed" (click)="markSurveyDone()">
+            <mat-icon>fact_check</mat-icon>
+            {{ 'quotes.markSurveyDone' | transloco }}
+          </button>
+          <button mat-stroked-button type="button" [disabled]="q.confirmed" (click)="recall()">
+            <mat-icon>phone_callback</mat-icon>
+            {{ 'quotes.recall' | transloco }}
+          </button>
+          <button mat-stroked-button color="primary" type="button" [disabled]="q.confirmed" (click)="confirmQuote()">
+            <mat-icon>check_circle</mat-icon>
+            {{ 'quotes.confirm' | transloco }}
+          </button>
+          @if (q.sfRequested) {
+            <button mat-stroked-button type="button" [disabled]="togglingSf()" (click)="toggleSfConfirmation()">
+              <mat-icon>{{ q.sfConfirmed ? 'undo' : 'verified' }}</mat-icon>
+              {{ (q.sfConfirmed ? 'quotes.revokeSfConfirmation' : 'quotes.confirmSf') | transloco }}
+            </button>
+          }
+          <button mat-stroked-button type="button" (click)="generatePdf()" [disabled]="generatingPdf()">
+            @if (generatingPdf()) {
+              <mat-spinner diameter="18" />
+            } @else {
+              <mat-icon>picture_as_pdf</mat-icon>
+            }
+            {{ 'quotes.generatePdf' | transloco }}
+          </button>
+          @if (q.pdfUrl) {
+            <a mat-stroked-button [href]="q.pdfUrl" target="_blank" rel="noopener">
+              <mat-icon>open_in_new</mat-icon>
+              {{ 'quotes.viewPdf' | transloco }}
+            </a>
+          }
+          <button mat-stroked-button color="warn" type="button" (click)="deleteQuote()">
+            <mat-icon>delete</mat-icon>
+            {{ 'common.delete' | transloco }}
+          </button>
+        </div>
+
+        @if (q.recallNotes) {
+          <p class="quote-form__recall-notes">{{ 'quotes.recallNotes' | transloco }}: {{ q.recallNotes }}</p>
+        }
+
+        <h2>{{ 'quotes.attachments' | transloco }}</h2>
+        <div class="attachments">
+          @for (attachment of q.attachments; track attachment.id) {
+            <div class="attachments__item">
+              <a [href]="attachment.fileUrl" target="_blank" rel="noopener">{{ attachment.fileName }}</a>
+              <span class="attachments__date">{{ attachment.uploadedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+              <button mat-icon-button type="button" (click)="removeAttachment(attachment)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          }
+          <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="image/*,.pdf" />
+          <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploadingAttachment()">
+            @if (uploadingAttachment()) {
+              <mat-spinner diameter="18" />
+            } @else {
+              <mat-icon>attach_file</mat-icon>
+            }
+            {{ 'quotes.uploadAttachment' | transloco }}
+          </button>
+        </div>
+
+        <hvac-fgas-records-section [quoteId]="q.id" />
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,58 @@
+.login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--hvac-login-bg);
+  background-size: cover;
+  background-position: center;
+
+  &__card {
+    width: 100%;
+    max-width: 400px;
+    padding: 32px 28px;
+    border-radius: 18px;
+    background: var(--mat-sys-surface);
+  }
+
+  &__brand {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 48px;
+    margin-bottom: 8px;
+  }
+
+  &__logo {
+    max-height: 56px;
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  &__brand-name {
+    font: var(--mat-sys-headline-small);
+    font-weight: 600;
+    text-align: center;
+  }
+
+  &__subtitle {
+    margin: 0 0 20px;
+    text-align: center;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    button {
+      margin-top: 8px;
+    }
+  }
+
+  mat-form-field {
+    width: 100%;
+  }
+}

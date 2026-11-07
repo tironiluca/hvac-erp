@@ -1,0 +1,63 @@
+<div class="hvac-page repairs">
+  <header class="hvac-page__header">
+    <h1>{{ 'repairs.title' | transloco }}</h1>
+    <div class="hvac-page__actions">
+      <button mat-flat-button color="primary" (click)="openNew()">
+        <mat-icon>add</mat-icon>
+        {{ 'repairs.new' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="hvac-loading">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else if (repairs().length === 0) {
+    <p class="hvac-empty">{{ 'repairs.empty' | transloco }}</p>
+  } @else {
+    <table mat-table [dataSource]="repairs()" class="hvac-table">
+      <ng-container matColumnDef="type">
+        <th mat-header-cell *matHeaderCellDef>{{ 'repairs.type' | transloco }}</th>
+        <td mat-cell *matCellDef="let repair">
+          {{ ('repairs.types.' + repair.type) | transloco }}
+          @if (repair.urgent) {
+            <mat-icon class="repairs__urgent-icon" [matTooltip]="'repairs.urgent' | transloco" inline="true">priority_high</mat-icon>
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="client">
+        <th mat-header-cell *matHeaderCellDef>{{ 'repairs.client' | transloco }}</th>
+        <td mat-cell *matCellDef="let repair">{{ repair.clientName }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="brand">
+        <th mat-header-cell *matHeaderCellDef>{{ 'repairs.brand' | transloco }}</th>
+        <td mat-cell *matCellDef="let repair">{{ repair.brand || '-' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>{{ 'repairs.status' | transloco }}</th>
+        <td mat-cell *matCellDef="let repair">
+          <mat-chip [class]="'status-chip ' + statusClass(repair)">
+            {{ ('repairs.statuses.' + repair.status) | transloco }}
+          </mat-chip>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="total">
+        <th mat-header-cell *matHeaderCellDef>{{ 'repairs.total' | transloco }}</th>
+        <td mat-cell *matCellDef="let repair">{{ repair.total | number: '1.2-2' }} €</td>
+      </ng-container>
+
+      <ng-container matColumnDef="insertedAt">
+        <th mat-header-cell *matHeaderCellDef>{{ 'repairs.insertedAt' | transloco }}</th>
+        <td mat-cell *matCellDef="let repair">{{ repair.insertedAt | date: 'dd/MM/yyyy' }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let repair; columns: displayedColumns" (click)="openDetail(repair)"></tr>
+    </table>
+  }
+</div>

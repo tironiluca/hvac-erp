@@ -1,0 +1,434 @@
+.cal {
+  max-width: 1400px;
+}
+
+.cal__live {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--mat-sys-outline);
+
+  &--on {
+    background: #2e7d32;
+  }
+}
+
+// ---- presence -------------------------------------------------------------
+.cal__viewers {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+  font: var(--mat-sys-label-medium);
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.cal__avatars {
+  display: inline-flex;
+  padding-left: 6px;
+}
+
+.cal__avatar {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--mat-sys-surface);
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+
+  &--more {
+    background: var(--mat-sys-surface-variant);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+// ---- toolbar ------------------------------------------------------------
+.cal__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+.cal__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cal__view {
+  margin-right: 8px;
+}
+
+.cal__range {
+  margin-left: 8px;
+  font: var(--mat-sys-title-medium);
+  white-space: nowrap;
+}
+
+.cal__range-month {
+  text-transform: capitalize;
+}
+
+.cal__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  mat-form-field {
+    width: 200px;
+  }
+}
+
+// ---- week grid: crews as rows, days as columns -------------------------
+.cal__week {
+  display: grid;
+  grid-template-columns: 132px repeat(7, minmax(146px, 1fr));
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.cal__corner {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--mat-sys-surface);
+}
+
+.cal__dayhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container-high);
+  text-transform: capitalize;
+
+  &--today {
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+  }
+}
+
+.cal__dow {
+  font: var(--mat-sys-label-large);
+}
+
+.cal__dom {
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+
+  .cal__dayhead--today & {
+    color: inherit;
+  }
+}
+
+.cal__lanehead {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container);
+  font: var(--mat-sys-label-large);
+}
+
+.cal__lane-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--crew-color, var(--mat-sys-outline));
+}
+
+.cal__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 84px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-low);
+
+  &--today {
+    border-color: var(--mat-sys-primary);
+  }
+}
+
+.cal__band {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px;
+  border-radius: 6px;
+  background: var(--mat-sys-surface-container);
+  transition: background 120ms ease, border-color 120ms ease;
+  border: 1px solid transparent;
+
+  &--full {
+    background: color-mix(in srgb, var(--mat-sys-primary) 8%, var(--mat-sys-surface-container));
+  }
+}
+
+.cal__band-label {
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cal__band.cdk-drop-list-dragging,
+.cal__band.cdk-drop-list-receiving {
+  border-color: var(--mat-sys-primary);
+  background: var(--mat-sys-primary-container);
+}
+
+// ---- appointment card (week) ----------------------------------------
+.cal__card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container-highest);
+  border-left: 3px solid var(--mat-sys-primary);
+  cursor: grab;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &--saving {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  &.cdk-drag-preview {
+    box-shadow: var(--mat-sys-level3);
+    cursor: grabbing;
+  }
+
+  &.cdk-drag-placeholder {
+    opacity: 0.35;
+  }
+}
+
+.cal__card-title {
+  font: var(--mat-sys-title-small);
+  line-height: 1.25;
+}
+
+.cal__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.cal__card-crew {
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
+
+  &--none {
+    font-style: italic;
+    color: var(--mat-sys-error);
+  }
+}
+
+// ---- month grid ---------------------------------------------------
+.cal__month {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.cal__month-head {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  min-width: 680px;
+  text-align: center;
+  text-transform: capitalize;
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.cal__month-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  min-width: 680px;
+}
+
+.cal__mcell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  // Fixed height: every day cell is the same size regardless of how many
+  // appointments it holds. Overflow past `monthChipLimit` folds into the "+N" chip.
+  height: 132px;
+  overflow: hidden;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-low);
+  transition: background 120ms ease, border-color 120ms ease;
+
+  &--out {
+    background: var(--mat-sys-surface);
+    opacity: 0.5;
+  }
+
+  &--today {
+    border-color: var(--mat-sys-primary);
+
+    .cal__mcell-dom {
+      background: var(--mat-sys-primary-container);
+      color: var(--mat-sys-on-primary-container);
+    }
+  }
+
+  &.cdk-drop-list-receiving,
+  &.cdk-drop-list-dragging {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-primary-container);
+  }
+}
+
+.cal__mcell-dom {
+  align-self: flex-end;
+  min-width: 20px;
+  padding: 0 4px;
+  border-radius: 6px;
+  text-align: center;
+  font: var(--mat-sys-label-large);
+}
+
+.cal__chip {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--mat-sys-surface-container-highest);
+  border-left: 3px solid var(--mat-sys-primary);
+  font: var(--mat-sys-label-small);
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &--saving {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  &.cdk-drag-preview {
+    box-shadow: var(--mat-sys-level3);
+  }
+
+  &.cdk-drag-placeholder {
+    opacity: 0.35;
+  }
+}
+
+.cal__chip-slot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  background: var(--mat-sys-surface-variant);
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cal__chip-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal__chip-quote {
+  flex: none;
+  margin-left: auto;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// "+N" overflow chip for days with more appointments than the cell can show.
+.cal__more {
+  flex: none;
+  align-self: flex-start;
+  margin: 1px 0 0 2px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mat-sys-primary);
+  font: var(--mat-sys-label-small);
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--mat-sys-surface-container-highest);
+  }
+}
+
+.cdk-drag-animating {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+@media (max-width: 720px) {
+  .cal__chip-quote {
+    display: none;
+  }
+}
+
+@media (max-width: 599px) {
+  .cal__filters mat-form-field {
+    width: 100%;
+  }
+
+  .cal__nav {
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,134 @@
+<div class="hvac-page dashboard">
+  <header class="hvac-page__header">
+    <div>
+      <h1>{{ 'dashboard.welcome' | transloco: { email: auth.currentUser()?.email } }}</h1>
+      <p class="hvac-page__subtitle">{{ 'dashboard.subtitle' | transloco }}</p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="hvac-loading"><mat-spinner diameter="32" /></div>
+  } @else if (data(); as d) {
+    <section class="dashboard__kpis" [attr.aria-label]="'dashboard.pipeline' | transloco">
+      @for (tile of pipeline(); track tile.key) {
+        <a class="dashboard__kpi" routerLink="/quotes">
+          <mat-icon>{{ tile.icon }}</mat-icon>
+          <span class="dashboard__kpi-value">{{ tile.value }}</span>
+          <span class="dashboard__kpi-label">{{ 'dashboard.' + tile.key | transloco }}</span>
+        </a>
+      }
+      <a class="dashboard__kpi" [class.dashboard__kpi--alert]="d.urgentOpenRepairs > 0" routerLink="/repairs">
+        <mat-icon>priority_high</mat-icon>
+        <span class="dashboard__kpi-value">{{ d.urgentOpenRepairs }}</span>
+        <span class="dashboard__kpi-label">{{ 'dashboard.urgentRepairs' | transloco }}</span>
+      </a>
+    </section>
+
+    <div class="dashboard__panels">
+      <section class="hvac-card dashboard__panel">
+        <h2 class="hvac-card__title">{{ 'dashboard.weekInstallations' | transloco }}</h2>
+        <p class="hvac-card__hint">{{ 'dashboard.weekOf' | transloco: { date: (d.weekStart | date: 'dd/MM/yyyy') } }}</p>
+        @if (d.weekInstallations.length === 0) {
+          <p class="dashboard__empty">{{ 'dashboard.noInstallations' | transloco }}</p>
+        } @else {
+          <ul class="dashboard__list">
+            @for (i of d.weekInstallations; track i.id) {
+              <li>
+                <a [routerLink]="['/installations', i.id]">
+                  <span class="dashboard__when">
+                    {{ i.date | date: 'dd/MM' }} · {{ 'installations.slots.' + i.slot | transloco }}
+                  </span>
+                  <span class="dashboard__what">
+                    {{ i.clientName }}
+                    @if (i.city) {
+                      <span class="dashboard__sub">— {{ i.city }}</span>
+                    }
+                  </span>
+                  <span class="dashboard__meta">
+                    {{ i.quoteNumber }}
+                    @if (i.installers.length) {
+                      <span>· {{ i.installers.join(', ') }}</span>
+                    }
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="hvac-card dashboard__panel">
+        <h2 class="hvac-card__title">{{ 'dashboard.openRepairs' | transloco }}</h2>
+        <p class="hvac-card__hint">{{ 'dashboard.openRepairsTotal' | transloco: { count: openRepairs() } }}</p>
+        <ul class="dashboard__list dashboard__list--compact">
+          @for (s of d.openRepairsByStatus; track s.status) {
+            <li class="dashboard__status-row" [class.dashboard__status-row--zero]="s.count === 0">
+              <mat-chip [class]="'status-chip ' + repairChipClass(s.status)">{{ 'repairs.statuses.' + s.status | transloco }}</mat-chip>
+              <span class="dashboard__count">{{ s.count }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="hvac-card dashboard__panel">
+        <h2 class="hvac-card__title">{{ 'dashboard.oldestOpen' | transloco }}</h2>
+        <p class="hvac-card__hint">{{ 'dashboard.oldestOpenHint' | transloco }}</p>
+        @if (d.quotes.oldestOpen.length === 0) {
+          <p class="dashboard__empty">{{ 'dashboard.noOpenQuotes' | transloco }}</p>
+        } @else {
+          <ul class="dashboard__list">
+            @for (q of d.quotes.oldestOpen; track q.id) {
+              <li>
+                <a [routerLink]="['/quotes', q.id]">
+                  <span class="dashboard__what">{{ q.clientName }}</span>
+                  <span class="dashboard__meta">
+                    {{ q.number }}/{{ q.version }} · {{ q.createdAt | date: 'dd/MM/yyyy' }}
+                  </span>
+                  <mat-chip [class]="'status-chip status-chip--' + quoteStatusKey(q.currentStatus)">
+                    {{ 'quotes.statuses.' + quoteStatusKey(q.currentStatus) | transloco }}
+                  </mat-chip>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="hvac-card dashboard__panel">
+        <h2 class="hvac-card__title">{{ 'dashboard.recentActivity' | transloco }}</h2>
+        @if (d.recentActivity.length === 0) {
+          <p class="dashboard__empty">{{ 'dashboard.noActivity' | transloco }}</p>
+        } @else {
+          <ul class="dashboard__list">
+            @for (a of d.recentActivity; track a.kind + a.entityId + a.occurredAt) {
+              <li>
+                <a [routerLink]="activityLink(a)">
+                  <mat-icon class="dashboard__kind">{{ a.kind === 'Quote' ? 'request_quote' : 'build' }}</mat-icon>
+                  <span class="dashboard__what">{{ a.reference }} · {{ a.clientName }}</span>
+                  <span class="dashboard__meta">
+                    {{ activityStatusLabel(a) | transloco }} · {{ a.occurredAt | date: 'dd/MM HH:mm' }}
+                    @if (a.changedBy) {
+                      <span>· {{ a.changedBy }}</span>
+                    }
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    </div>
+  } @else if (failed()) {
+    <p class="hvac-empty">{{ 'dashboard.loadError' | transloco }}</p>
+  }
+
+  <h2 class="dashboard__section-title">{{ 'dashboard.shortcuts' | transloco }}</h2>
+  <div class="dashboard__grid">
+    @for (item of shortcuts(); track item.labelKey) {
+      <a class="dashboard__card" [routerLink]="item.route">
+        <mat-icon>{{ item.icon }}</mat-icon>
+        <span>{{ item.labelKey | transloco }}</span>
+      </a>
+    }
+  </div>
+</div>

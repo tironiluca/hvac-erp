@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>d9172291-3298-42f8-a567-2f70872c8aac</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.11" />
+    <!-- Transitive via the SignalR Redis backplane; pinned past GHSA-qhrr-8q5h-9q3h (fixed in 2.5.303). -->
+    <PackageReference Include="MessagePack" Version="2.5.303" />
+    <PackageReference Include="Sentry.AspNetCore" Version="6.11.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HvacErp.Domain\HvacErp.Domain.csproj" />
+    <ProjectReference Include="..\HvacErp.Application\HvacErp.Application.csproj" />
+    <ProjectReference Include="..\HvacErp.Infrastructure\HvacErp.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

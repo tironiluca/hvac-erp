@@ -1,0 +1,217 @@
+.repair-form {
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+    padding: 48px 0;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 16px;
+
+    h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  &__workflow {
+    margin-top: 32px;
+
+    h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+
+  @media (max-width: 599px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.span-2 {
+  grid-column: span 2;
+
+  @media (max-width: 599px) {
+    grid-column: span 1;
+  }
+}
+
+.repeatable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.repeatable-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+
+  .grow {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  mat-form-field:not(.grow) {
+    flex: 0 0 120px;
+  }
+}
+
+.summary-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-weight: 600;
+
+  &__value {
+    font-size: 1.2rem;
+  }
+}
+
+.step-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.status-select {
+  max-width: 320px;
+}
+
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+
+  &__item {
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+  }
+
+  &__date {
+    font-weight: 600;
+    min-width: 90px;
+  }
+
+  &__notes {
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.schedule-form {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  mat-form-field {
+    width: auto;
+    min-width: 180px;
+  }
+
+  .grow {
+    flex: 1;
+    min-width: 200px;
+  }
+}
+
+// `.status-chip` variants are shared — see `src/styles.scss`.
+
+@media (max-width: 599px) {
+  .repair-form {
+    padding: 16px 12px;
+  }
+
+  .repair-form__header h1 {
+    order: 2;
+    flex-basis: 100%;
+    font-size: 1.15rem;
+  }
+
+  .repair-form__header .status-chip {
+    order: 1;
+  }
+
+  .repeatable-row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+
+    .grow {
+      flex: 1 1 100%;
+    }
+
+    mat-form-field:not(.grow) {
+      flex: 0 1 140px;
+    }
+
+    button {
+      margin-left: auto;
+    }
+  }
+
+  .summary-card {
+    padding: 14px 16px;
+  }
+
+  .step-actions button {
+    flex: 1 1 auto;
+  }
+
+  .schedule-form {
+    flex-direction: column;
+    align-items: stretch;
+
+    mat-form-field,
+    mat-form-field.grow {
+      flex: 0 0 auto;
+      width: 100%;
+      min-width: 0;
+    }
+
+    button {
+      width: 100%;
+    }
+  }
+
+  .schedule-list__item {
+    flex-wrap: wrap;
+    gap: 2px 12px;
+  }
+}

@@ -1,0 +1,329 @@
+<div class="hvac-page pdf-tpl">
+  <header class="hvac-page__header">
+    <div>
+      <h1>{{ 'pdfTemplates.title' | transloco }}</h1>
+      <p class="hvac-page__subtitle">{{ 'pdfTemplates.subtitle' | transloco }}</p>
+    </div>
+    <div class="hvac-page__actions">
+      <button mat-stroked-button type="button" (click)="revert()" [disabled]="saving() || !dirty()">
+        {{ 'pdfTemplates.reset' | transloco }}
+      </button>
+      <button
+        mat-flat-button
+        color="primary"
+        type="button"
+        (click)="save()"
+        [disabled]="nameControl.invalid || saving() || !dirty()"
+      >
+        @if (saving()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          {{ 'pdfTemplates.save' | transloco }}
+        }
+      </button>
+    </div>
+  </header>
+
+  <mat-button-toggle-group
+    class="pdf-tpl__doctype"
+    [value]="docType()"
+    (change)="docType.set($event.value)"
+    hideSingleSelectionIndicator
+  >
+    @for (type of documentTypes; track type) {
+      <mat-button-toggle [value]="type">{{ 'pdfTemplates.docType.' + type | transloco }}</mat-button-toggle>
+    }
+  </mat-button-toggle-group>
+
+  <div class="pdf-tpl__layout">
+    <div class="pdf-tpl__editor">
+      <mat-card class="hvac-card">
+        <div class="pdf-tpl__picker">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pdf-tpl__picker-select">
+            <mat-label>{{ 'pdfTemplates.template' | transloco }}</mat-label>
+            <mat-select [value]="selectedId()" (selectionChange)="selectTemplate($event.value)" [disabled]="busy()">
+              @for (tpl of templates(); track tpl.id) {
+                <mat-option [value]="tpl.id">
+                  {{ tpl.name }}@if (tpl.isActive) { <span class="pdf-tpl__badge">{{ 'pdfTemplates.active' | transloco }}</span> }
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pdf-tpl__picker-name">
+            <mat-label>{{ 'pdfTemplates.name' | transloco }}</mat-label>
+            <input matInput [formControl]="nameControl" maxlength="120" />
+          </mat-form-field>
+        </div>
+
+        <div class="pdf-tpl__picker-actions">
+          <button mat-stroked-button type="button" (click)="newFromDefault()" [disabled]="busy()">
+            <mat-icon>add</mat-icon>{{ 'pdfTemplates.new' | transloco }}
+          </button>
+          <button mat-stroked-button type="button" (click)="duplicate()" [disabled]="busy() || !selected()">
+            <mat-icon>content_copy</mat-icon>{{ 'pdfTemplates.duplicate' | transloco }}
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="activate()"
+            [disabled]="busy() || !selected() || selected()!.isActive"
+          >
+            <mat-icon>check_circle</mat-icon>{{ 'pdfTemplates.activate' | transloco }}
+          </button>
+          <button mat-icon-button type="button" [matMenuTriggerFor]="moreMenu" [disabled]="busy() || !selected()">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #moreMenu="matMenu">
+            <button mat-menu-item type="button" (click)="restoreDefaults()">
+              <mat-icon>restart_alt</mat-icon>{{ 'pdfTemplates.restoreDefaults' | transloco }}
+            </button>
+            <button
+              mat-menu-item
+              type="button"
+              (click)="remove()"
+              [disabled]="!selected() || selected()!.isSystemDefault || selected()!.isActive"
+            >
+              <mat-icon>delete</mat-icon>{{ 'pdfTemplates.delete' | transloco }}
+            </button>
+          </mat-menu>
+        </div>
+      </mat-card>
+
+      @if (working(); as def) {
+        <!-- Page setup -->
+        <mat-card class="hvac-card">
+          <h2 class="hvac-card__title">{{ 'pdfTemplates.pageSetup' | transloco }}</h2>
+          <div class="pdf-tpl__grid">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ 'pdfTemplates.pageSize' | transloco }}</mat-label>
+              <mat-select [value]="def.page.size" (selectionChange)="setPageSize($event.value)">
+                @for (size of pageSizes; track size) {
+                  <mat-option [value]="size">{{ size }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ 'pdfTemplates.language' | transloco }}</mat-label>
+              <mat-select [value]="def.page.language ?? 'en'" (selectionChange)="setLanguage($event.value)">
+                @for (lang of pdfLanguages; track lang) {
+                  <mat-option [value]="lang">{{ 'pdfTemplates.languages.' + lang | transloco }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ 'pdfTemplates.font' | transloco }}</mat-label>
+              <mat-select [value]="def.page.fontFamily" (selectionChange)="setFont($event.value)">
+                @for (font of catalog()?.fontFamilies ?? []; track font) {
+                  <mat-option [value]="font">{{ font }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ 'pdfTemplates.margin' | transloco }}</mat-label>
+              <input matInput type="number" min="8" max="72" [value]="def.page.margin" (change)="setMargin($any($event.target).value)" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ 'pdfTemplates.baseFontSize' | transloco }}</mat-label>
+              <input matInput type="number" min="7" max="14" [value]="def.page.baseFontSize" (change)="setBaseFontSize($any($event.target).value)" />
+            </mat-form-field>
+
+            <div class="pdf-tpl__accent">
+              <span>{{ 'pdfTemplates.accentColor' | transloco }}</span>
+              <input
+                type="color"
+                [value]="def.page.accentColor"
+                (input)="setAccent($any($event.target).value)"
+                [attr.aria-label]="'pdfTemplates.accentColor' | transloco"
+              />
+              <code>{{ def.page.accentColor }}</code>
+            </div>
+          </div>
+        </mat-card>
+
+        <!-- Header -->
+        <mat-card class="hvac-card">
+          <h2 class="hvac-card__title">{{ 'pdfTemplates.header' | transloco }}</h2>
+
+          <div class="pdf-tpl__toggles">
+            <mat-slide-toggle [checked]="def.header.showLogo" (change)="setHeaderFlag('showLogo', $event.checked)">
+              {{ 'pdfTemplates.headerFields.showLogo' | transloco }}
+            </mat-slide-toggle>
+            <mat-slide-toggle [checked]="def.header.showTitle" (change)="setHeaderFlag('showTitle', $event.checked)">
+              {{ 'pdfTemplates.headerFields.showTitle' | transloco }}
+            </mat-slide-toggle>
+            <mat-slide-toggle [checked]="def.header.showDocumentMeta" (change)="setHeaderFlag('showDocumentMeta', $event.checked)">
+              {{ 'pdfTemplates.headerFields.showDocumentMeta' | transloco }}
+            </mat-slide-toggle>
+            @if (docType() === 'Quote') {
+              <mat-slide-toggle [checked]="def.header.showAgent" (change)="setHeaderFlag('showAgent', $event.checked)">
+                {{ 'pdfTemplates.headerFields.showAgent' | transloco }}
+              </mat-slide-toggle>
+            }
+            <mat-slide-toggle [checked]="def.header.showClientBlock" (change)="setHeaderFlag('showClientBlock', $event.checked)">
+              {{ 'pdfTemplates.headerFields.showClientBlock' | transloco }}
+            </mat-slide-toggle>
+          </div>
+
+          <mat-form-field appearance="outline" class="pdf-tpl__full" subscriptSizing="dynamic">
+            <mat-label>{{ 'pdfTemplates.titleOverride' | transloco }}</mat-label>
+            <input
+              matInput
+              maxlength="200"
+              [placeholder]="'pdfTemplates.titleOverridePlaceholder' | transloco"
+              [value]="def.header.titleOverride ?? ''"
+              (change)="setHeaderTitle($any($event.target).value)"
+            />
+          </mat-form-field>
+
+          @if (def.header.showClientBlock) {
+            <p class="hvac-card__hint">{{ 'pdfTemplates.clientFieldsHint' | transloco }}</p>
+            <div class="pdf-tpl__checks">
+              @for (field of catalog()?.clientFields ?? []; track field.key) {
+                <label class="pdf-tpl__check">
+                  <input
+                    type="checkbox"
+                    [checked]="def.header.clientFields.includes(field.key)"
+                    (change)="toggleClientField(field.key, $any($event.target).checked)"
+                  />
+                  {{ field.labelKey | transloco }}
+                </label>
+              }
+            </div>
+          }
+        </mat-card>
+
+        <!-- Sections -->
+        <mat-card class="hvac-card">
+          <div class="pdf-tpl__sections-head">
+            <h2 class="hvac-card__title">{{ 'pdfTemplates.sections' | transloco }}</h2>
+            @if (addableSections().length) {
+              <button mat-stroked-button type="button" [matMenuTriggerFor]="addMenu">
+                <mat-icon>add</mat-icon>{{ 'pdfTemplates.addSection' | transloco }}
+              </button>
+              <mat-menu #addMenu="matMenu">
+                @for (entry of addableSections(); track entry.type) {
+                  <button mat-menu-item type="button" (click)="addSection(entry.type)">
+                    {{ entry.labelKey | transloco }}
+                  </button>
+                }
+              </mat-menu>
+            }
+          </div>
+          <p class="hvac-card__hint">{{ 'pdfTemplates.sectionsHint' | transloco }}</p>
+
+          <div cdkDropList (cdkDropListDropped)="onSectionDrop($event)" class="pdf-tpl__droplist">
+            @for (row of sectionRows(); track row.index) {
+              <div cdkDrag class="pdf-tpl__section" [class.pdf-tpl__section--off]="!row.section.enabled">
+                <div class="pdf-tpl__section-bar">
+                  <mat-icon cdkDragHandle class="pdf-tpl__drag" aria-hidden="true">drag_indicator</mat-icon>
+                  <mat-slide-toggle
+                    [checked]="row.section.enabled"
+                    (change)="setSectionEnabled(row.index, $event.checked)"
+                  />
+                  <span class="pdf-tpl__section-name">{{ row.entry.labelKey | transloco }}</span>
+                  @if (row.entry.repeatable) {
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="pdf-tpl__section-del"
+                      (click)="removeSection(row.index)"
+                      [attr.aria-label]="'pdfTemplates.removeSection' | transloco"
+                    >
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  }
+                </div>
+
+                @if (row.section.enabled) {
+                  <div class="pdf-tpl__section-body">
+                    <mat-form-field appearance="outline" class="pdf-tpl__full" subscriptSizing="dynamic">
+                      <mat-label>{{ 'pdfTemplates.sectionTitle' | transloco }}</mat-label>
+                      <input
+                        matInput
+                        maxlength="200"
+                        [value]="row.section.titleOverride ?? ''"
+                        (change)="setSectionTitle(row.index, $any($event.target).value)"
+                      />
+                    </mat-form-field>
+
+                    @if (row.entry.supportsBody) {
+                      <mat-form-field appearance="outline" class="pdf-tpl__full" subscriptSizing="dynamic">
+                        <mat-label>{{ 'pdfTemplates.sectionBody' | transloco }}</mat-label>
+                        <textarea
+                          matInput
+                          rows="3"
+                          maxlength="4000"
+                          [value]="row.section.body ?? ''"
+                          (change)="setSectionBody(row.index, $any($event.target).value)"
+                        ></textarea>
+                      </mat-form-field>
+                    }
+
+                    @if (row.entry.columns.length) {
+                      <p class="pdf-tpl__sub">{{ 'pdfTemplates.columns' | transloco }}</p>
+                      <div class="pdf-tpl__checks">
+                        @for (col of row.entry.columns; track col.key) {
+                          <label class="pdf-tpl__check">
+                            <input
+                              type="checkbox"
+                              [checked]="row.section.columns.includes(col.key)"
+                              (change)="toggleColumn(row.index, row.entry, col.key, $any($event.target).checked)"
+                            />
+                            {{ col.labelKey | transloco }}
+                          </label>
+                        }
+                      </div>
+                    }
+
+                    @if (row.entry.options.length) {
+                      <div class="pdf-tpl__toggles">
+                        @for (opt of row.entry.options; track opt.key) {
+                          <mat-slide-toggle
+                            [checked]="optionChecked(row.section, opt.key, opt.defaultOn)"
+                            (change)="setSectionOption(row.index, opt.key, $event.checked)"
+                          >{{ opt.labelKey | transloco }}</mat-slide-toggle>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </mat-card>
+
+        <!-- Footer -->
+        <mat-card class="hvac-card">
+          <h2 class="hvac-card__title">{{ 'pdfTemplates.footer' | transloco }}</h2>
+          <mat-form-field appearance="outline" class="pdf-tpl__full" subscriptSizing="dynamic">
+            <mat-label>{{ 'pdfTemplates.footerLines' | transloco }}</mat-label>
+            <textarea matInput rows="3" [value]="footerText()" (change)="setFooterText($any($event.target).value)"></textarea>
+          </mat-form-field>
+          <mat-slide-toggle
+            [checked]="def.footer.showPageNumbers"
+            (change)="setFooterPageNumbers($event.checked)"
+          >{{ 'pdfTemplates.showPageNumbers' | transloco }}</mat-slide-toggle>
+        </mat-card>
+      }
+    </div>
+
+    <aside class="pdf-tpl__preview">
+      <div class="pdf-tpl__preview-head">
+        <span>{{ 'pdfTemplates.preview' | transloco }}</span>
+        @if (previewLoading()) {
+          <mat-spinner diameter="18" />
+        }
+      </div>
+      @if (previewUrl(); as url) {
+        <iframe [src]="url" title="PDF preview" class="pdf-tpl__frame"></iframe>
+      } @else {
+        <div class="pdf-tpl__frame pdf-tpl__frame--empty">{{ 'pdfTemplates.previewEmpty' | transloco }}</div>
+      }
+    </aside>
+  </div>
+</div>

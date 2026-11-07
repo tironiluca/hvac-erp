@@ -1,0 +1,132 @@
+<mat-sidenav-container class="shell">
+  <mat-sidenav
+    #sidenav
+    class="shell__sidenav"
+    [class.shell__sidenav--mobile]="isMobile()"
+    [class.shell__sidenav--collapsed]="railCollapsed() && !isMobile()"
+    [mode]="isMobile() ? 'over' : 'side'"
+    [opened]="!isMobile()"
+    [fixedInViewport]="isMobile()"
+    [attr.role]="isMobile() ? 'dialog' : 'navigation'"
+  >
+    <div class="shell__brand">
+      @if (branding.logoUrl(); as logo) {
+        <img class="shell__brand-logo" [src]="logo" [alt]="branding.portalTitle()" />
+      } @else {
+        <mat-icon class="shell__brand-mark">ac_unit</mat-icon>
+        <span class="shell__brand-name">{{ branding.portalTitle() }}</span>
+      }
+
+      @if (isMobile()) {
+        <button
+          mat-icon-button
+          class="shell__brand-close"
+          [attr.aria-label]="'nav.closeMenu' | transloco"
+          (click)="sidenav.close()"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      } @else {
+        <button
+          mat-icon-button
+          class="shell__rail-toggle"
+          [attr.aria-label]="(railCollapsed() ? 'nav.expandMenu' : 'nav.collapseMenu') | transloco"
+          [matTooltip]="(railCollapsed() ? 'nav.expandMenu' : 'nav.collapseMenu') | transloco"
+          matTooltipPosition="right"
+          (click)="toggleRail()"
+        >
+          <mat-icon>{{ railCollapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+        </button>
+      }
+    </div>
+
+    <mat-nav-list>
+      @for (item of navItems(); track item.labelKey) {
+        @if (item.route) {
+          <a
+            mat-list-item
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: item.route === '/' }"
+            [matTooltip]="item.labelKey | transloco"
+            matTooltipPosition="right"
+            [matTooltipDisabled]="!railCollapsed() || isMobile()"
+            (click)="isMobile() && sidenav.close()"
+          >
+            <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+            <span matListItemTitle>{{ item.labelKey | transloco }}</span>
+          </a>
+        } @else {
+          <a
+            mat-list-item
+            disabled
+            matTooltipPosition="right"
+            [matTooltip]="
+              (railCollapsed() && !isMobile() ? item.labelKey : 'nav.comingSoon') | transloco
+            "
+          >
+            <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+            <span matListItemTitle>{{ item.labelKey | transloco }}</span>
+          </a>
+        }
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <mat-toolbar color="primary">
+      @if (isMobile()) {
+        <button
+          mat-icon-button
+          class="shell__menu-btn"
+          [attr.aria-label]="'nav.openMenu' | transloco"
+          (click)="sidenav.toggle()"
+        >
+          <mat-icon>menu</mat-icon>
+        </button>
+      }
+
+      <span class="shell__title">{{ branding.portalTitle() }}</span>
+      <span class="shell__spacer"></span>
+
+      <button mat-icon-button [matTooltip]="'nav.toggleTheme' | transloco" (click)="toggleTheme()">
+        <mat-icon>{{ theme.mode() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+
+      <button mat-icon-button [matMenuTriggerFor]="userMenu">
+        <mat-icon>account_circle</mat-icon>
+      </button>
+      <mat-menu #userMenu="matMenu">
+        <div class="shell__user-details">
+          <div class="shell__user-email">{{ auth.currentUser()?.email }}</div>
+          @if (currentUser.role(); as role) {
+            <div class="shell__user-role">
+              <span>{{ 'nav.role' | transloco }}</span>
+              <strong>{{ role }}</strong>
+            </div>
+          }
+        </div>
+        <button mat-menu-item [matMenuTriggerFor]="langMenu">
+          <mat-icon>language</mat-icon>
+          <span>{{ 'nav.language' | transloco }}</span>
+        </button>
+        <button mat-menu-item (click)="signOut()">
+          <mat-icon>logout</mat-icon>
+          <span>{{ 'nav.signOut' | transloco }}</span>
+        </button>
+      </mat-menu>
+      <mat-menu #langMenu="matMenu">
+        @for (lang of language.available; track lang) {
+          <button mat-menu-item (click)="setLanguage(lang)">
+            <mat-icon>{{ language.lang() === lang ? 'check' : '' }}</mat-icon>
+            <span>{{ 'nav.languages.' + lang | transloco }}</span>
+          </button>
+        }
+      </mat-menu>
+    </mat-toolbar>
+
+    <main class="shell__content">
+      <router-outlet />
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

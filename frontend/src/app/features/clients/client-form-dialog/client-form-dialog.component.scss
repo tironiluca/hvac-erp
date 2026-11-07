@@ -1,0 +1,28 @@
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  min-width: 480px;
+
+  @media (max-width: 599px) {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+}
+
+.span-2 {
+  grid-column: span 2;
+
+  @media (max-width: 599px) {
+    grid-column: span 1;
+  }
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+// Destructive action sits apart from Cancel / Save.
+.client-dialog__delete {
+  margin-right: auto;
+}

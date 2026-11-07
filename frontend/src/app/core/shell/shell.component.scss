@@ -1,0 +1,177 @@
+.shell {
+  height: 100vh;
+  // Behind the rail: the same recessed canvas the routed content scrolls on, so
+  // the gap framing the floating rail panel reads as one continuous surface.
+  background-color: var(--hvac-canvas);
+  // Gap that insets the floating rail panel from the app-root frame and the canvas.
+  --shell-rail-gap: 12px;
+  // Visible rail width; the collapsed modifier drops this to an icon-only strip.
+  --shell-rail-width: 272px;
+
+  &__sidenav {
+    // Slot width: the visible rail plus the gap on each side. Material offsets the
+    // routed content by this border-box width, so the rail's right-hand gap lands
+    // between the panel edge and the canvas.
+    width: calc(var(--shell-rail-width) + var(--shell-rail-gap) * 2);
+    // The rail itself is painted on the inner scroll container as a floating,
+    // rounded panel (see styles.scss); the host is just a transparent slot.
+    background: transparent;
+    border-right: 0;
+    transition: width 200ms ease;
+
+    // Collapsed (mini) rail: just the leading icons. The label/text teardown lives
+    // in styles.scss (Material-internal nodes); here we only shrink the slot.
+    &--collapsed {
+      --shell-rail-width: 72px;
+    }
+
+    // Below the tablet breakpoint the rail becomes a full-screen overlay so it
+    // covers the content entirely rather than squeezing it.
+    &--mobile {
+      width: 100vw;
+      max-width: 100%;
+    }
+  }
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+
+    .shell__sidenav--collapsed & {
+      padding-inline: 8px;
+      justify-content: center;
+    }
+  }
+
+  &__brand-close {
+    margin-left: auto;
+    margin-right: -8px;
+  }
+
+  // Desktop collapse/expand handle. Pushed to the far edge while the brand shows;
+  // the only thing left in the header once the rail is collapsed.
+  &__rail-toggle {
+    margin-left: auto;
+    margin-right: -8px;
+
+    .shell__sidenav--collapsed & {
+      margin: 0;
+    }
+  }
+
+  &__menu-btn {
+    margin-left: -8px;
+    margin-right: 4px;
+  }
+
+  &__brand-logo {
+    max-height: 36px;
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  &__brand-mark {
+    color: var(--mat-sys-primary);
+    font-size: 28px;
+    height: 28px;
+    width: 28px;
+  }
+
+  &__brand-name {
+    font: var(--mat-sys-title-medium);
+    font-weight: 600;
+  }
+
+  // Collapsed rail: the brand identity is dropped so the 72px header holds only
+  // the expand handle. The logo re-appears the moment the rail is opened again.
+  &__sidenav--collapsed {
+    .shell__brand-logo,
+    .shell__brand-mark,
+    .shell__brand-name {
+      display: none;
+    }
+  }
+
+  &__title {
+    font-weight: 500;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  &__spacer {
+    flex: 1 1 auto;
+  }
+
+  &__content {
+    padding: 0;
+  }
+
+  // Floating chrome over the content: a rounded white panel inset from the app-root
+  // frame and lifted off the canvas by a soft shadow — the horizontal echo of the
+  // nav rail rather than a band welded to the top edge.
+  mat-toolbar {
+    position: relative;
+    z-index: 2;
+    // Inset on every side (same gap as the rail); the width calc absorbs the
+    // left/right margin so the row never pushes a horizontal scrollbar.
+    margin: var(--shell-rail-gap);
+    width: calc(100% - var(--shell-rail-gap) * 2);
+    background: var(--hvac-panel);
+    color: var(--mat-sys-on-surface);
+    border: 1px solid var(--mat-sys-outline-variant);
+    border-radius: 16px;
+    box-shadow: var(--hvac-shadow-sm);
+  }
+
+  &__user-details {
+    padding: 8px 16px;
+  }
+
+  &__user-email {
+    font-size: 12px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__user-role {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--mat-sys-on-surface-variant);
+
+    strong {
+      color: var(--mat-sys-on-surface);
+      font-weight: 600;
+    }
+  }
+}
+
+a[mat-list-item] {
+  border-radius: 10px;
+  margin: 2px 8px;
+
+  &:hover:not(.active):not([disabled]) {
+    background: var(--mat-sys-surface-container-high);
+  }
+
+  &.active {
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+
+    .mat-icon {
+      color: var(--mat-sys-on-secondary-container);
+    }
+  }
+
+  &[disabled] {
+    opacity: 0.5;
+    pointer-events: auto;
+    cursor: default;
+  }
+}

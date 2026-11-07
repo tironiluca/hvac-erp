@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    XML documentation for every src/ project: emitted next to each assembly so Swashbuckle can surface
+    the <summary> comments in Swagger (see Program.cs IncludeXmlComments).
+
+    CS1591 is silenced because the compiler demands a comment on every property / enum value / record
+    member. The project rule is narrower — every public *type* and *method* carries a <summary> — and
+    is enforced by tests/HvacErp.Api.Tests/XmlDocumentationCoverageTests instead.
+  -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

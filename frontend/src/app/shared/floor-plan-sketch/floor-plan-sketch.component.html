@@ -1,0 +1,168 @@
+<div class="fps" [class.fps--disabled]="disabled()">
+  <div class="fps__toolbar">
+    <div class="fps__colors" role="group" [attr.aria-label]="'floorPlanSketch.colour' | transloco">
+      @for (swatch of palette; track swatch) {
+        <button
+          type="button"
+          class="fps__swatch"
+          [class.fps__swatch--active]="color() === swatch && mode() !== 'eraser' && mode() !== 'pan'"
+          [style.background]="swatch"
+          [disabled]="disabled()"
+          [matTooltip]="'floorPlanSketch.colour' | transloco"
+          (click)="pickColor(swatch)"
+        ></button>
+      }
+    </div>
+
+    <mat-button-toggle-group
+      class="fps__sizes"
+      [value]="size()"
+      [disabled]="disabled()"
+      (change)="setSize($event.value)"
+      [hideSingleSelectionIndicator]="true"
+      [attr.aria-label]="'floorPlanSketch.width' | transloco"
+    >
+      <mat-button-toggle value="thin" [matTooltip]="'floorPlanSketch.widths.thin' | transloco">
+        <span class="fps__dot fps__dot--thin"></span>
+      </mat-button-toggle>
+      <mat-button-toggle value="medium" [matTooltip]="'floorPlanSketch.widths.medium' | transloco">
+        <span class="fps__dot fps__dot--medium"></span>
+      </mat-button-toggle>
+      <mat-button-toggle value="thick" [matTooltip]="'floorPlanSketch.widths.thick' | transloco">
+        <span class="fps__dot fps__dot--thick"></span>
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <mat-button-toggle-group
+      class="fps__modes"
+      [value]="mode()"
+      [disabled]="disabled()"
+      (change)="setMode($event.value)"
+      [hideSingleSelectionIndicator]="true"
+      [attr.aria-label]="'floorPlanSketch.tool' | transloco"
+    >
+      <mat-button-toggle value="pen" [matTooltip]="'floorPlanSketch.tools.pen' | transloco">
+        <mat-icon>edit</mat-icon>
+      </mat-button-toggle>
+      <mat-button-toggle value="highlighter" [matTooltip]="'floorPlanSketch.tools.highlighter' | transloco">
+        <mat-icon>brush</mat-icon>
+      </mat-button-toggle>
+      <mat-button-toggle value="eraser" [matTooltip]="'floorPlanSketch.tools.eraser' | transloco">
+        <mat-icon>backspace</mat-icon>
+      </mat-button-toggle>
+      <mat-button-toggle value="pan" [matTooltip]="'floorPlanSketch.tools.pan' | transloco">
+        <mat-icon>pan_tool</mat-icon>
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <span class="fps__spacer"></span>
+
+    <button
+      mat-icon-button
+      type="button"
+      [disabled]="disabled() || !canUndo()"
+      [matTooltip]="'floorPlanSketch.undo' | transloco"
+      (click)="undo()"
+    >
+      <mat-icon>undo</mat-icon>
+    </button>
+    <button
+      mat-icon-button
+      type="button"
+      [disabled]="disabled() || !canRedo()"
+      [matTooltip]="'floorPlanSketch.redo' | transloco"
+      (click)="redo()"
+    >
+      <mat-icon>redo</mat-icon>
+    </button>
+    <button
+      mat-icon-button
+      type="button"
+      [disabled]="disabled() || currentEmpty()"
+      [matTooltip]="'floorPlanSketch.clear' | transloco"
+      (click)="clearSheet()"
+    >
+      <mat-icon>delete_sweep</mat-icon>
+    </button>
+  </div>
+
+  <div class="fps__sheets">
+    <span class="fps__sheets-label">{{ 'floorPlanSketch.sheet' | transloco }}</span>
+    @for (i of tabs(); track i) {
+      <button
+        type="button"
+        class="fps__tab"
+        [class.fps__tab--active]="activeIndex() === i"
+        (click)="selectSheet(i)"
+      >
+        {{ i + 1 }}
+      </button>
+    }
+    <button
+      mat-icon-button
+      type="button"
+      class="fps__sheet-btn"
+      [disabled]="disabled() || !canAddSheet()"
+      [matTooltip]="'floorPlanSketch.addSheet' | transloco"
+      (click)="addSheet()"
+    >
+      <mat-icon>add</mat-icon>
+    </button>
+    <button
+      mat-icon-button
+      type="button"
+      class="fps__sheet-btn"
+      [disabled]="disabled() || !canRemoveSheet()"
+      [matTooltip]="'floorPlanSketch.removeSheet' | transloco"
+      (click)="removeSheet()"
+    >
+      <mat-icon>delete</mat-icon>
+    </button>
+  </div>
+
+  <div class="fps__stage">
+    <canvas
+      #canvas
+      class="fps__canvas"
+      [class.fps__canvas--pan]="mode() === 'pan'"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp($event)"
+      (pointercancel)="onPointerUp($event)"
+    ></canvas>
+
+    @if (currentEmpty()) {
+      <p class="fps__hint">{{ 'floorPlanSketch.emptyHint' | transloco }}</p>
+    }
+
+    <div class="fps__zoom">
+      <button
+        mat-icon-button
+        type="button"
+        [disabled]="disabled() || zoomPercent() <= 100"
+        [matTooltip]="'floorPlanSketch.zoomOut' | transloco"
+        (click)="zoomOut()"
+      >
+        <mat-icon>remove</mat-icon>
+      </button>
+      <button
+        type="button"
+        class="fps__zoom-label"
+        [disabled]="disabled() || !canResetView()"
+        [matTooltip]="'floorPlanSketch.resetView' | transloco"
+        (click)="resetView()"
+      >
+        {{ zoomPercent() }}%
+      </button>
+      <button
+        mat-icon-button
+        type="button"
+        [disabled]="disabled() || zoomPercent() >= 600"
+        [matTooltip]="'floorPlanSketch.zoomIn' | transloco"
+        (click)="zoomIn()"
+      >
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
+  </div>
+</div>

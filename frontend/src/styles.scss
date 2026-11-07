@@ -1,0 +1,324 @@
+@use '@angular/material' as mat;
+@use './theme-colors' as brand;
+
+// HVAC ERP — Material 3 theme.
+// Palettes are generated (ng generate @angular/material:theme-color) from the product's
+// neutral default seeds: primary #2B6CB0 (blue), tertiary #DD6B20 (amber accent / CTA),
+// neutral #5F6368 (grey text). See _theme-colors.scss. A deployment's own brand colours are
+// data (portal_brandings), applied at runtime by BrandingService.
+// Light and dark variants both defined; ThemeService toggles between them via the
+// `dark-theme` class on <html> (see core/services/theme.service.ts).
+// Roboto (index.html) with sans-serif fallbacks, so text never drops to the browser's serif
+// default while the web font loads or if Google Fonts is unreachable.
+$font-stack: (
+  brand-family: (Roboto, 'Helvetica Neue', Arial, sans-serif),
+  plain-family: (Roboto, 'Helvetica Neue', Arial, sans-serif),
+);
+
+$light-theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: brand.$primary-palette,
+    tertiary: brand.$tertiary-palette,
+  ),
+  typography: $font-stack,
+));
+
+$dark-theme: mat.define-theme((
+  color: (
+    theme-type: dark,
+    primary: brand.$primary-palette,
+    tertiary: brand.$tertiary-palette,
+  ),
+  typography: $font-stack,
+));
+
+html {
+  height: 100%;
+  @include mat.all-component-themes($light-theme);
+  // `all-component-themes` only sets per-component tokens (--mdc-*, etc.), not the root
+  // --mat-sys-* system variables our own CSS (below) reads from — those need this explicitly.
+  @include mat.system-level-colors($light-theme);
+  // Likewise the --mat-sys-* type scale (body-medium, title-medium, …) that `body` and the shared
+  // .hvac-* primitives use in `font:` shorthands — without it those declarations are invalid and
+  // text falls back to the browser's default serif face.
+  @include mat.system-level-typography($light-theme);
+
+  // The full `--mat-sys-*` ramp (neutrals included) now comes from the generated brand
+  // palette above, so the compile-time fallback and BrandingService's runtime theme agree.
+  // `BrandingService` re-derives the same tokens from the stored seeds and writes them as
+  // inline props on <html>, overriding these for the white-label case.
+
+  // Login backdrop — BrandingService overrides this at runtime from the brand seeds / uploaded image.
+  --hvac-login-bg: linear-gradient(135deg, #dcf5ff, #f2fbff);
+
+  // Elevation system. The generated neutral ramp is too tight in light mode for tonal
+  // elevation alone to read, so raised chrome (nav rail, toolbar, cards) sits as a white
+  // `--hvac-panel` on a recessed `--hvac-canvas`, lifted by a soft shadow. Both are `var()`
+  // onto `--mat-sys-*`, so BrandingService's runtime tokens and dark mode still flow through.
+  --hvac-canvas: var(--mat-sys-surface-container);
+  --hvac-panel: var(--mat-sys-surface-container-lowest);
+  --hvac-shadow-sm: 0 1px 2px rgb(15 23 30 / 0.06), 0 1px 3px rgb(15 23 30 / 0.10);
+  --hvac-shadow-md: 0 2px 6px rgb(15 23 30 / 0.08), 0 8px 20px rgb(15 23 30 / 0.12);
+}
+
+html.dark-theme {
+  @include mat.all-component-colors($dark-theme);
+  @include mat.system-level-colors($dark-theme);
+
+  // Dark mode inverts the ramp: elevation means *lighter*, so the canvas drops to the
+  // darkest surface and panels rise above it. Shadows go heavier to stay visible.
+  --hvac-canvas: var(--mat-sys-surface);
+  --hvac-panel: var(--mat-sys-surface-container);
+  --hvac-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.40), 0 1px 3px rgb(0 0 0 / 0.50);
+  --hvac-shadow-md: 0 2px 8px rgb(0 0 0 / 0.44), 0 10px 26px rgb(0 0 0 / 0.56);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+// ---------------------------------------------------------------------------
+// Shared page/layout primitives. Every routed feature view opts in with
+// `.hvac-page`; lists and forms compose the helpers below so spacing, headers
+// and card treatment stay identical across modules.
+// ---------------------------------------------------------------------------
+
+// The routed content scrolls on the recessed canvas so `.hvac-page` cards and the
+// nav rail read as raised panels rather than one flat plane.
+.shell .mat-drawer-content {
+  background-color: var(--hvac-canvas);
+}
+
+// The nav rail is drawn here — on the sidenav's inner scroll container — as a
+// floating rounded panel, inset from the app-root frame by the `--shell-rail-gap`
+// set in shell.component.scss (the <mat-sidenav> host stays a transparent slot).
+// Global scope because `.mat-drawer-inner-container` is a Material-internal node.
+.shell .mat-drawer-inner-container {
+  width: calc(100% - var(--shell-rail-gap, 12px) * 2);
+  height: calc(100% - var(--shell-rail-gap, 12px) * 2);
+  margin: var(--shell-rail-gap, 12px);
+  background: var(--hvac-panel);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 16px;
+  box-shadow: var(--hvac-shadow-sm);
+}
+
+// Full-screen mobile drawer: edge-to-edge, drop the floating-panel treatment.
+.shell__sidenav--mobile .mat-drawer-inner-container {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+// Collapsed (mini) rail: keep only the leading icon of each nav row. The label and
+// Material's text wrapper are removed and the row padding zeroed so every item is a
+// centred icon square. Global scope because these nodes are Material-internal; the
+// label itself carries a `matTooltip` (enabled only while collapsed) for discovery.
+.shell__sidenav--collapsed {
+  .mat-drawer-inner-container {
+    overflow-x: hidden;
+  }
+
+  a.mat-mdc-list-item {
+    padding-left: 0;
+    padding-right: 0;
+    justify-content: center;
+  }
+
+  a.mat-mdc-list-item .mdc-list-item__content {
+    display: none;
+  }
+
+  a.mat-mdc-list-item .mat-mdc-list-item-icon {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.hvac-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px;
+
+  @media (max-width: 599px) {
+    padding: 16px 12px;
+  }
+}
+
+.hvac-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+
+  h1 {
+    margin: 0;
+    font: var(--mat-sys-headline-small);
+  }
+}
+
+.hvac-page__subtitle {
+  margin: 4px 0 0;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.9rem;
+}
+
+.hvac-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hvac-card,
+.mat-mdc-card.hvac-card {
+  display: block;
+  padding: 20px;
+  border-radius: 14px;
+  background: var(--hvac-panel);
+  border: 1px solid var(--mat-sys-outline-variant);
+  box-shadow: var(--hvac-shadow-sm);
+}
+
+.hvac-card__title {
+  margin: 0 0 4px;
+  font: var(--mat-sys-title-medium);
+}
+
+.hvac-card__hint {
+  margin: 0 0 16px;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.85rem;
+}
+
+.hvac-empty,
+.hvac-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 56px 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Shared clickable data table (feature list views). Framed as a raised panel so the
+// list reads as a surface on the canvas, consistent with cards elsewhere.
+.hvac-table {
+  width: 100%;
+  --mat-table-background-color: var(--hvac-panel);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  box-shadow: var(--hvac-shadow-sm);
+
+  tr[mat-row] {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--mat-sys-surface-container-high);
+    }
+  }
+}
+
+// Status pills. Theme-driven where a system role fits; the amber / grey / green / red
+// variants are deliberate fixed semantic accents (warning / paused / done / urgent).
+// Colours go through Material's chip tokens: a plain `background` on the host loses to
+// `.mat-mdc-standard-chip:not(.mdc-evolution-chip--disabled)` and the pill renders uncoloured.
+@mixin status-chip-colors($bg, $fg) {
+  --mat-chip-elevated-container-color: #{$bg};
+  --mat-chip-label-text-color: #{$fg};
+  --mat-chip-outline-color: transparent;
+  --mat-chip-outline-width: 0;
+}
+
+.status-chip {
+  font-size: 0.75rem;
+
+  &--draft,
+  &--new {
+    @include status-chip-colors(var(--mat-sys-surface-container-highest), var(--mat-sys-on-surface-variant));
+  }
+
+  &--surveyed,
+  &--in-progress {
+    @include status-chip-colors(var(--mat-sys-tertiary-container), var(--mat-sys-on-tertiary-container));
+  }
+
+  &--scheduled {
+    @include status-chip-colors(var(--mat-sys-secondary-container), var(--mat-sys-on-secondary-container));
+  }
+
+  &--confirmed,
+  &--ready {
+    @include status-chip-colors(var(--mat-sys-primary-container), var(--mat-sys-on-primary-container));
+  }
+
+  &--recalled,
+  &--waiting {
+    @include status-chip-colors(#fce8b2, #7a5b00);
+  }
+
+  &--on-hold {
+    @include status-chip-colors(#e0e0e0, #424242);
+  }
+
+  &--closed {
+    @include status-chip-colors(#c8e6c9, #1b5e20);
+  }
+
+  &--urgent {
+    @include status-chip-colors(#fbdad7, #b3261e);
+  }
+}
+
+// Two-column responsive field grid, shared by the wizard and the feature forms.
+.form-grid,
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 16px;
+}
+
+.form-grid {
+  gap: 4px 16px;
+}
+
+.checkbox-grid {
+  gap: 12px 16px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 599px) {
+  .form-grid,
+  .checkbox-grid,
+  .span-2 {
+    grid-template-columns: 1fr;
+    grid-column: auto;
+  }
+}
+
+// Opt-in multi-line tooltip (calendar chips list their hidden appointments one per
+// line). The panel lives in the CDK overlay, so this has to be global.
+.cal__tip.mat-mdc-tooltip .mdc-tooltip__surface {
+  white-space: pre-line;
+  text-align: left;
+  max-width: 260px;
+}

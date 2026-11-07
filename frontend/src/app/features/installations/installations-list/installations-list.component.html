@@ -1,0 +1,59 @@
+<div class="hvac-page installations">
+  <header class="hvac-page__header">
+    <h1>{{ 'installations.title' | transloco }}</h1>
+    <div class="hvac-page__actions">
+      <button mat-stroked-button (click)="openCalendar()">
+        <mat-icon>calendar_month</mat-icon>
+        {{ 'installations.calendar.calendarView' | transloco }}
+      </button>
+      <button mat-flat-button color="primary" (click)="openNew()">
+        <mat-icon>add</mat-icon>
+        {{ 'installations.new' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="hvac-loading">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else if (installations().length === 0) {
+    <p class="hvac-empty">{{ 'installations.empty' | transloco }}</p>
+  } @else {
+    <table mat-table [dataSource]="installations()" class="hvac-table">
+      <ng-container matColumnDef="date">
+        <th mat-header-cell *matHeaderCellDef>{{ 'installations.date' | transloco }}</th>
+        <td mat-cell *matCellDef="let installation">{{ installation.date | date: 'dd/MM/yyyy' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="slot">
+        <th mat-header-cell *matHeaderCellDef>{{ 'installations.slot' | transloco }}</th>
+        <td mat-cell *matCellDef="let installation">{{ ('installations.slots.' + installation.slot) | transloco }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="client">
+        <th mat-header-cell *matHeaderCellDef>{{ 'installations.client' | transloco }}</th>
+        <td mat-cell *matCellDef="let installation">{{ installation.clientName }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="crew">
+        <th mat-header-cell *matHeaderCellDef>{{ 'installations.crew' | transloco }}</th>
+        <td mat-cell *matCellDef="let installation">{{ crewLabel(installation) }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="pdf">
+        <th mat-header-cell *matHeaderCellDef>{{ 'installations.pdf' | transloco }}</th>
+        <td mat-cell *matCellDef="let installation">
+          @if (installation.reportPdfUrl) {
+            <mat-chip class="status-chip status-chip--ready">{{ 'installations.pdfReady' | transloco }}</mat-chip>
+          } @else {
+            <mat-chip class="status-chip status-chip--new">{{ 'installations.pdfMissing' | transloco }}</mat-chip>
+          }
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let installation; columns: displayedColumns" (click)="openDetail(installation)"></tr>
+    </table>
+  }
+</div>

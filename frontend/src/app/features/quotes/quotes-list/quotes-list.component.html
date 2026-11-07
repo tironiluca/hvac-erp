@@ -1,0 +1,58 @@
+<div class="hvac-page quotes">
+  <header class="hvac-page__header">
+    <h1>{{ 'quotes.title' | transloco }}</h1>
+    <div class="hvac-page__actions">
+      <button mat-flat-button color="primary" (click)="openNew()">
+        <mat-icon>add</mat-icon>
+        {{ 'quotes.new' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="hvac-loading">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else if (quotes().length === 0) {
+    <p class="hvac-empty">{{ 'quotes.empty' | transloco }}</p>
+  } @else {
+    <table mat-table [dataSource]="quotes()" class="hvac-table">
+      <ng-container matColumnDef="number">
+        <th mat-header-cell *matHeaderCellDef>{{ 'quotes.number' | transloco }}</th>
+        <td mat-cell *matCellDef="let quote">{{ quoteLabel(quote) }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="client">
+        <th mat-header-cell *matHeaderCellDef>{{ 'quotes.client' | transloco }}</th>
+        <td mat-cell *matCellDef="let quote">{{ quote.clientName }} ({{ quote.clientCode }})</td>
+      </ng-container>
+
+      <ng-container matColumnDef="department">
+        <th mat-header-cell *matHeaderCellDef>{{ 'quotes.department' | transloco }}</th>
+        <td mat-cell *matCellDef="let quote">{{ ('quotes.departments.' + quote.department) | transloco }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>{{ 'quotes.status' | transloco }}</th>
+        <td mat-cell *matCellDef="let quote">
+          <mat-chip [class]="'status-chip status-chip--' + status(quote)">
+            {{ ('quotes.statuses.' + status(quote)) | transloco }}
+          </mat-chip>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="finalPrice">
+        <th mat-header-cell *matHeaderCellDef>{{ 'quotes.finalPrice' | transloco }}</th>
+        <td mat-cell *matCellDef="let quote">{{ quote.finalPrice | number: '1.2-2' }} €</td>
+      </ng-container>
+
+      <ng-container matColumnDef="createdAt">
+        <th mat-header-cell *matHeaderCellDef>{{ 'quotes.createdAt' | transloco }}</th>
+        <td mat-cell *matCellDef="let quote">{{ quote.createdAt | date: 'dd/MM/yyyy' }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let quote; columns: displayedColumns" (click)="openDetail(quote)"></tr>
+    </table>
+  }
+</div>

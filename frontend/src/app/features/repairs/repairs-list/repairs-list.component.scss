@@ -1,0 +1,11 @@
+// Layout, table and status-chip styling are shared — see `.hvac-page` / `.hvac-table` /
+// `.status-chip` in `src/styles.scss`.
+
+.repairs__urgent-icon {
+  color: #b3261e;
+  font-size: 16px;
+  height: 16px;
+  width: 16px;
+  vertical-align: middle;
+  margin-left: 4px;
+}

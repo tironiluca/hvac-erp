@@ -1,0 +1,217 @@
+<div class="repair-form">
+  @if (loading()) {
+    <div class="repair-form__loading">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else {
+    <div class="repair-form__header">
+      <button mat-icon-button routerLink="/repairs" [matTooltip]="'common.cancel' | transloco">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      @if (repair(); as r) {
+        <h1>{{ 'repairs.detailTitle' | transloco }} — #{{ r.id }}</h1>
+        <mat-chip [class]="'status-chip ' + statusClass(r.status)">
+          {{ ('repairs.statuses.' + r.status) | transloco }}
+        </mat-chip>
+      } @else {
+        <h1>{{ 'repairs.newTitle' | transloco }}</h1>
+      }
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="form-grid">
+        <mat-form-field appearance="outline" class="span-2">
+          <mat-label>{{ 'repairs.client' | transloco }}</mat-label>
+          <input
+            matInput
+            [formControl]="clientControl"
+            [matAutocomplete]="clientAuto"
+            [placeholder]="'repairs.clientHint' | transloco"
+          />
+          <mat-autocomplete #clientAuto="matAutocomplete" [displayWith]="displayClient" (optionSelected)="onClientSelected($event)">
+            @for (option of clientOptions(); track option.id) {
+              <mat-option [value]="option">{{ option.fullName }} ({{ option.code }})</mat-option>
+            }
+          </mat-autocomplete>
+          @if (clientControl.invalid && clientControl.touched) {
+            <mat-error>{{ 'repairs.clientRequired' | transloco }}</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'repairs.type' | transloco }}</mat-label>
+          <mat-select formControlName="type">
+            <mat-option value="Repair">{{ 'repairs.types.Repair' | transloco }}</mat-option>
+            <mat-option value="Revision">{{ 'repairs.types.Revision' | transloco }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'repairs.brand' | transloco }}</mat-label>
+          <input matInput formControlName="brand" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'repairs.quoteId' | transloco }}</mat-label>
+          <input matInput type="number" formControlName="quoteId" [placeholder]="'repairs.quoteIdHint' | transloco" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="span-2">
+          <mat-label>{{ 'repairs.description' | transloco }}</mat-label>
+          <textarea matInput rows="3" formControlName="description"></textarea>
+        </mat-form-field>
+
+        <mat-checkbox formControlName="urgent">{{ 'repairs.urgent' | transloco }}</mat-checkbox>
+        <mat-checkbox formControlName="predisposed">{{ 'repairs.predisposed' | transloco }}</mat-checkbox>
+        <mat-checkbox formControlName="allInclusive">{{ 'repairs.allInclusive' | transloco }}</mat-checkbox>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'repairs.unitCount' | transloco }}</mat-label>
+          <input matInput type="number" formControlName="unitCount" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'repairs.splitCount' | transloco }}</mat-label>
+          <input matInput type="number" formControlName="splitCount" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'repairs.rounding' | transloco }}</mat-label>
+          <input matInput type="number" formControlName="rounding" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'repairs.installationDate' | transloco }}</mat-label>
+          <input matInput [matDatepicker]="installationPicker" formControlName="installationDate" />
+          <mat-datepicker-toggle matSuffix [for]="installationPicker" />
+          <mat-datepicker #installationPicker />
+        </mat-form-field>
+      </div>
+
+      <h3>{{ 'repairs.serviceItems' | transloco }}</h3>
+      <div formArrayName="serviceItems" class="repeatable-list">
+        @for (control of form.controls.serviceItems.controls; track control; let i = $index) {
+          <div [formGroupName]="i" class="repeatable-row">
+            <mat-form-field appearance="outline" class="grow">
+              <mat-label>{{ 'repairs.serviceItem' | transloco }}</mat-label>
+              <mat-select formControlName="serviceItemId">
+                @for (s of serviceItemsList(); track s.id) {
+                  <mat-option [value]="s.id">{{ s.name }} ({{ s.price | number: '1.2-2' }} €)</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'repairs.quantity' | transloco }}</mat-label>
+              <input matInput type="number" formControlName="quantity" />
+            </mat-form-field>
+            <button mat-icon-button type="button" (click)="removeServiceItem(i)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+      <button mat-stroked-button type="button" (click)="addServiceItem()">
+        <mat-icon>add</mat-icon>
+        {{ 'repairs.addServiceItem' | transloco }}
+      </button>
+
+      <h3>{{ 'floorPlanSketch.title' | transloco }}</h3>
+      <hvac-floor-plan-sketch formControlName="floorPlanSketch" />
+
+      <div class="summary-card">
+        <span>{{ 'repairs.total' | transloco }}</span>
+        <span class="summary-card__value">{{ (repair()?.total ?? estimatedTotal()) | number: '1.2-2' }} €</span>
+      </div>
+
+      <div class="step-actions">
+        <button mat-flat-button color="primary" type="submit" [disabled]="saving()">
+          @if (saving()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            {{ (repairId() ? 'common.save' : 'repairs.create') | transloco }}
+          }
+        </button>
+      </div>
+    </form>
+
+    @if (repair(); as r) {
+      <div class="repair-form__workflow">
+        <h2>{{ 'repairs.status' | transloco }}</h2>
+        <mat-form-field appearance="outline" class="status-select">
+          <mat-label>{{ 'repairs.status' | transloco }}</mat-label>
+          <mat-select [value]="r.status" (selectionChange)="changeStatus($event.value)">
+            @for (status of statuses(); track status) {
+              <mat-option [value]="status">{{ ('repairs.statuses.' + status) | transloco }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <div class="repair-form__actions">
+          <button mat-stroked-button type="button" (click)="generatePdf()" [disabled]="generatingPdf()">
+            @if (generatingPdf()) {
+              <mat-spinner diameter="18" />
+            } @else {
+              <mat-icon>picture_as_pdf</mat-icon>
+            }
+            {{ 'repairs.generatePdf' | transloco }}
+          </button>
+          @if (r.pdfUrl) {
+            <a mat-stroked-button [href]="r.pdfUrl" target="_blank" rel="noopener">
+              <mat-icon>open_in_new</mat-icon>
+              {{ 'repairs.viewPdf' | transloco }}
+            </a>
+          }
+          <button mat-stroked-button color="warn" type="button" (click)="deleteRepair()">
+            <mat-icon>delete</mat-icon>
+            {{ 'common.delete' | transloco }}
+          </button>
+        </div>
+
+        <h2>{{ 'repairs.schedule' | transloco }}</h2>
+        <div class="schedule-list">
+          @for (entry of r.scheduleEntries; track entry.id) {
+            <div class="schedule-list__item">
+              <span class="schedule-list__date">{{ entry.date | date: 'dd/MM/yyyy' }}</span>
+              <span>{{ entry.installerName || ('repairs.noInstaller' | transloco) }}</span>
+              @if (entry.notes) {
+                <span class="schedule-list__notes">{{ entry.notes }}</span>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="schedule-form">
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'repairs.installer' | transloco }}</mat-label>
+            <mat-select [formControl]="scheduleInstallerId">
+              <mat-option [value]="null"></mat-option>
+              @for (installer of installers(); track installer.id) {
+                <mat-option [value]="installer.id">{{ installer.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'repairs.scheduleDate' | transloco }}</mat-label>
+            <input matInput [matDatepicker]="schedulePicker" [formControl]="scheduleDate" />
+            <mat-datepicker-toggle matSuffix [for]="schedulePicker" />
+            <mat-datepicker #schedulePicker />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="grow">
+            <mat-label>{{ 'repairs.scheduleNotes' | transloco }}</mat-label>
+            <input matInput [formControl]="scheduleNotes" />
+          </mat-form-field>
+          <button mat-stroked-button type="button" [disabled]="!scheduleDate.value || addingSchedule()" (click)="addSchedule()">
+            @if (addingSchedule()) {
+              <mat-spinner diameter="18" />
+            } @else {
+              <mat-icon>event</mat-icon>
+            }
+            {{ 'repairs.addSchedule' | transloco }}
+          </button>
+        </div>
+
+        <hvac-fgas-records-section [repairId]="r.id" />
+      </div>
+    }
+  }
+</div>

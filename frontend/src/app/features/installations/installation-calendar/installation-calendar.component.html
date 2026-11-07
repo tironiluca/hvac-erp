@@ -1,0 +1,217 @@
+<div class="hvac-page cal" [class.cal--shared]="viewers().length">
+  <header class="hvac-page__header">
+    <div>
+      <h1>{{ 'installations.calendar.title' | transloco }}</h1>
+      <p class="hvac-page__subtitle">
+        <span
+          class="cal__live"
+          [class.cal__live--on]="connected()"
+          [matTooltip]="(connected() ? 'installations.calendar.live' : 'installations.calendar.offline') | transloco"
+        ></span>
+        {{ 'installations.calendar.count' | transloco: { count: totalVisible() } }}
+      </p>
+      @if (viewers().length) {
+        <p class="cal__viewers" [matTooltip]="viewerNames()">
+          <mat-icon>visibility</mat-icon>
+          <span class="cal__viewers-text">{{ 'installations.calendar.alsoHere' | transloco }}</span>
+          <span class="cal__avatars">
+            @for (v of viewers().slice(0, 5); track v.id) {
+              <span class="cal__avatar" [matTooltip]="v.name">{{ initials(v.name) }}</span>
+            }
+            @if (viewers().length > 5) {
+              <span class="cal__avatar cal__avatar--more">+{{ viewers().length - 5 }}</span>
+            }
+          </span>
+        </p>
+      }
+    </div>
+    <div class="hvac-page__actions">
+      <button mat-stroked-button (click)="openList()">
+        <mat-icon>list</mat-icon>
+        {{ 'installations.calendar.listView' | transloco }}
+      </button>
+      <button mat-flat-button color="primary" (click)="openNew()">
+        <mat-icon>add</mat-icon>
+        {{ 'installations.new' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  <div class="cal__toolbar">
+    <div class="cal__nav">
+      <mat-button-toggle-group
+        class="cal__view"
+        hideSingleSelectionIndicator
+        [value]="viewMode()"
+        (change)="setView($event.value)"
+      >
+        <mat-button-toggle value="week">{{ 'installations.calendar.viewWeek' | transloco }}</mat-button-toggle>
+        <mat-button-toggle value="month">{{ 'installations.calendar.viewMonth' | transloco }}</mat-button-toggle>
+      </mat-button-toggle-group>
+
+      <button mat-icon-button (click)="shift(-1)" [matTooltip]="'installations.calendar.prevPeriod' | transloco">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <button mat-stroked-button (click)="goToday()">{{ 'installations.calendar.today' | transloco }}</button>
+      <button mat-icon-button (click)="shift(1)" [matTooltip]="'installations.calendar.nextPeriod' | transloco">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+      <span class="cal__range">
+        @if (viewMode() === 'week') {
+          {{ range().start | date: 'd MMM' }} – {{ range().end | date: 'd MMM y' }}
+        } @else {
+          <span class="cal__range-month">{{ anchor() | date: 'MMMM y' }}</span>
+        }
+      </span>
+    </div>
+
+    <div class="cal__filters">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'installations.calendar.filterInstaller' | transloco }}</mat-label>
+        <mat-select [formControl]="installerFilter" multiple>
+          @for (installer of allInstallers(); track installer.id) {
+            <mat-option [value]="installer.id">{{ installer.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'installations.calendar.filterCrew' | transloco }}</mat-label>
+        <mat-select [formControl]="crewFilter">
+          <mat-option [value]="null">{{ 'installations.calendar.allCrews' | transloco }}</mat-option>
+          @for (crew of crews(); track crew) {
+            <mat-option [value]="crew">{{ 'installations.calendar.crew' | transloco: { n: crew } }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      @if (installerFilter.value.length || crewFilter.value != null) {
+        <button mat-icon-button (click)="clearFilters()" [matTooltip]="'installations.calendar.clearFilters' | transloco">
+          <mat-icon>filter_alt_off</mat-icon>
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="hvac-loading"><mat-spinner diameter="32" /></div>
+  } @else if (viewMode() === 'week') {
+    <div class="cal__week" cdkDropListGroup>
+      <div class="cal__corner"></div>
+      @for (head of weekdayHeaders(); track head.day) {
+        <div class="cal__dayhead" [class.cal__dayhead--today]="head.isToday">
+          <span class="cal__dow">{{ head.day | date: 'EEE' }}</span>
+          <span class="cal__dom">{{ head.day | date: 'd MMM' }}</span>
+        </div>
+      }
+
+      @for (lane of weekLanes(); track lane.laneId) {
+        <div class="cal__lanehead" [style.--crew-color]="lane.color">
+          <span class="cal__lane-dot"></span>
+          @if (lane.isNoCrew) {
+            {{ 'installations.calendar.noCrewLane' | transloco }}
+          } @else {
+            {{ 'installations.calendar.crew' | transloco: { n: lane.laneId } }}
+          }
+        </div>
+
+        @for (cell of lane.cells; track cell.dayKey) {
+          <div
+            class="cal__cell"
+            [class.cal__cell--today]="cell.isToday"
+            [class.cal__cell--collapsed]="cell.collapsed"
+          >
+            @for (row of cell.rows; track row.id) {
+              <div
+                class="cal__band"
+                [class.cal__band--full]="row.slot === 'FullDay'"
+                cdkDropList
+                [cdkDropListData]="row"
+                (cdkDropListDropped)="onWeekDrop($event)"
+              >
+                <span class="cal__band-label">{{ 'installations.slots.' + row.slot | transloco }}</span>
+                @for (item of row.items; track item.id) {
+                  <article
+                    class="cal__card"
+                    [class.cal__card--saving]="pending().has(item.id)"
+                    [style.border-left-color]="lane.color"
+                    cdkDrag
+                    [cdkDragData]="item"
+                    (click)="openDetail(item)"
+                  >
+                    <div class="cal__card-title">{{ item.clientName }}</div>
+                    <div class="cal__card-meta">
+                      <span>#{{ item.quoteNumber }}</span>
+                      @if (item.city) { <span>· {{ item.city }}</span> }
+                    </div>
+                    @if (item.installers.length) {
+                      <div class="cal__card-crew">{{ crewLabel(item) }}</div>
+                    } @else {
+                      <div class="cal__card-crew cal__card-crew--none">
+                        {{ 'installations.calendar.noCrew' | transloco }}
+                      </div>
+                    }
+                  </article>
+                }
+              </div>
+            }
+          </div>
+        }
+      }
+    </div>
+  } @else {
+    <div class="cal__month" cdkDropListGroup>
+      <div class="cal__month-head">
+        @for (head of weekdayHeaders(); track head.day) {
+          <span>{{ head.day | date: 'EEE' }}</span>
+        }
+      </div>
+      @for (week of monthWeeks(); track $index) {
+        <div class="cal__month-row">
+          @for (cell of week; track cell.dayKey) {
+            <div
+              class="cal__mcell"
+              [class.cal__mcell--out]="!cell.inMonth"
+              [class.cal__mcell--today]="cell.isToday"
+              cdkDropList
+              [cdkDropListData]="cell"
+              (cdkDropListDropped)="onMonthDrop($event)"
+            >
+              <span class="cal__mcell-dom">{{ cell.day | date: 'd' }}</span>
+              @for (item of cell.items.slice(0, monthChipLimit); track item.id) {
+                <article
+                  class="cal__chip"
+                  [class.cal__chip--saving]="pending().has(item.id)"
+                  [style.border-left-color]="cardColor(item)"
+                  [matTooltip]="chipTooltip(item)"
+                  matTooltipClass="cal__tip"
+                  cdkDrag
+                  [cdkDragData]="item"
+                  (click)="openDetail(item)"
+                >
+                  <span class="cal__chip-slot">{{ slotInitial(item.slot) }}</span>
+                  <span class="cal__chip-title">{{ item.clientName }}</span>
+                  <span class="cal__chip-quote">#{{ item.quoteNumber }}</span>
+                </article>
+              }
+              @if (cell.items.length > monthChipLimit) {
+                <button
+                  type="button"
+                  class="cal__more"
+                  [matTooltip]="moreTooltip(cell)"
+                  matTooltipClass="cal__tip"
+                  (click)="openDay(cell.day)"
+                >
+                  {{
+                    'installations.calendar.more'
+                      | transloco: { count: cell.items.length - monthChipLimit }
+                  }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

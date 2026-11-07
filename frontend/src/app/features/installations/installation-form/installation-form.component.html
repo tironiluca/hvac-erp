@@ -1,0 +1,128 @@
+<div class="installation-form">
+  @if (loading()) {
+    <div class="installation-form__loading">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else {
+    <div class="installation-form__header">
+      <button mat-icon-button routerLink="/installations" [matTooltip]="'common.cancel' | transloco">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      @if (installation(); as i) {
+        <h1>{{ 'installations.detailTitle' | transloco }} — #{{ i.id }}</h1>
+      } @else {
+        <h1>{{ 'installations.newTitle' | transloco }}</h1>
+      }
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="form-grid">
+        @if (installation(); as i) {
+          <div class="span-2 quote-readonly">
+            <span class="quote-readonly__label">{{ 'installations.quote' | transloco }}</span>
+            <span>{{ i.clientName }} — {{ 'installations.quoteId' | transloco }} {{ i.quoteId }}</span>
+          </div>
+        } @else {
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'installations.client' | transloco }}</mat-label>
+            <input
+              matInput
+              [formControl]="clientControl"
+              [matAutocomplete]="clientAuto"
+              [placeholder]="'installations.clientHint' | transloco"
+            />
+            <mat-autocomplete #clientAuto="matAutocomplete" [displayWith]="displayClient" (optionSelected)="onClientSelected($event)">
+              @for (option of clientOptions(); track option.id) {
+                <mat-option [value]="option">{{ option.fullName }} ({{ option.code }})</mat-option>
+              }
+            </mat-autocomplete>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'installations.confirmedQuote' | transloco }}</mat-label>
+            <mat-select [formControl]="quoteIdControl">
+              @for (quote of quoteOptions(); track quote.id) {
+                <mat-option [value]="quote.id">{{ quoteLabel(quote) }}</mat-option>
+              }
+            </mat-select>
+            @if (quoteOptions().length === 0) {
+              <mat-hint>{{ 'installations.noConfirmedQuotes' | transloco }}</mat-hint>
+            }
+            @if (quoteIdControl.invalid && quoteIdControl.touched) {
+              <mat-error>{{ 'installations.quoteRequired' | transloco }}</mat-error>
+            }
+          </mat-form-field>
+        }
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'installations.date' | transloco }}</mat-label>
+          <input matInput [matDatepicker]="datePicker" formControlName="date" />
+          <mat-datepicker-toggle matSuffix [for]="datePicker" />
+          <mat-datepicker #datePicker />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'installations.slot' | transloco }}</mat-label>
+          <mat-select formControlName="slot">
+            @for (option of daySlots(); track option.code) {
+              <mat-option [value]="option.code">{{ 'installations.slots.' + option.code | transloco }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="span-2">
+          <mat-label>{{ 'installations.crew' | transloco }}</mat-label>
+          <mat-select formControlName="installerIds" multiple>
+            @for (installer of installers(); track installer.id) {
+              <mat-option [value]="installer.id">{{ installer.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="span-2">
+          <mat-label>{{ 'installations.notes' | transloco }}</mat-label>
+          <textarea matInput rows="3" formControlName="notes"></textarea>
+        </mat-form-field>
+      </div>
+
+      <h3>{{ 'floorPlanSketch.title' | transloco }}</h3>
+      <hvac-floor-plan-sketch formControlName="floorPlanSketch" />
+
+      <div class="step-actions">
+        <button mat-flat-button color="primary" type="submit" [disabled]="saving()">
+          @if (saving()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            {{ (installationId() ? 'common.save' : 'installations.create') | transloco }}
+          }
+        </button>
+      </div>
+    </form>
+
+    @if (installation(); as i) {
+      <div class="installation-form__workflow">
+        <h2>{{ 'installations.report' | transloco }}</h2>
+        <div class="installation-form__actions">
+          <button mat-stroked-button type="button" (click)="generatePdf()" [disabled]="generatingPdf()">
+            @if (generatingPdf()) {
+              <mat-spinner diameter="18" />
+            } @else {
+              <mat-icon>picture_as_pdf</mat-icon>
+            }
+            {{ 'installations.generatePdf' | transloco }}
+          </button>
+          @if (i.reportPdfUrl) {
+            <a mat-stroked-button [href]="i.reportPdfUrl" target="_blank" rel="noopener">
+              <mat-icon>open_in_new</mat-icon>
+              {{ 'installations.viewPdf' | transloco }}
+            </a>
+          }
+          <button mat-stroked-button color="warn" type="button" (click)="deleteInstallation()">
+            <mat-icon>delete</mat-icon>
+            {{ 'common.delete' | transloco }}
+          </button>
+        </div>
+      </div>
+    }
+  }
+</div>

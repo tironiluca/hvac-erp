@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (.NET)
+    runs-on: ubuntu-latest
+    services:
+      # Backs the Redis presence-store tests (they no-op when REDIS_TEST_CONNECTION is unset).
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+      # Backs the migration-chain + query-translation integration test.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      REDIS_TEST_CONNECTION: localhost:6379
+      POSTGRES_TEST_CONNECTION: Host=localhost;Username=postgres;Password=postgres
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: |
+          dotnet restore HvacErp.sln
+          dotnet tool restore
+
+      - name: Build
+        run: dotnet build HvacErp.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test HvacErp.sln --no-build -c Release --logger "trx;LogFileName=results.trx" --results-directory TestResults
+
+      - name: Migration drift check
+        # Fails when an entity/configuration change was committed without its EF migration.
+        run: >
+          dotnet tool run dotnet-ef migrations has-pending-model-changes
+          --project src/HvacErp.Infrastructure
+          --startup-project src/HvacErp.Api
+          --configuration Release
+          --no-build
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/TestResults
+
+  api-image:
+    name: API Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the Render image (no push)
+        run: docker build -f backend/src/HvacErp.Api/Dockerfile backend
+
+  frontend:
+    name: Frontend (Angular)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Build (production)
+        run: npx ng build
+
+      - name: Test
+        run: npx ng test --watch=false
+
+  deploy-notice:
+    # Render (API) and Vercel (SPA) deploy themselves on every push to master; this job only gates
+    # on the checks above and flags any EF migration that still has to be applied to Supabase by hand.
+    name: Post-merge deploy notice
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [backend, api-image, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect new EF migrations
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="$(git rev-list --max-parents=0 HEAD)"
+          fi
+          MIGRATIONS=$(git diff --name-only --diff-filter=A "$BEFORE" "$GITHUB_SHA" -- \
+            'backend/src/HvacErp.Infrastructure/Persistence/Migrations/*.cs' \
+            | grep -v -e '\.Designer\.cs$' -e 'ModelSnapshot\.cs$' || true)
+          {
+            echo "## Deploy"
+            echo "Render (API) and Vercel (frontend) auto-deploy this commit."
+            echo
+            if [ -n "$MIGRATIONS" ]; then
+              echo "### :warning: Pending database migrations"
+              echo "Apply to Supabase before relying on this deploy:"
+              echo '```'
+              echo "cd backend && dotnet tool restore && dotnet tool run dotnet-ef database update \\"
+              echo "  --project src/HvacErp.Infrastructure --startup-project src/HvacErp.Api"
+              echo '```'
+              echo "$MIGRATIONS" | sed 's/^/- /'
+            else
+              echo "No new EF migrations in this push."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$MIGRATIONS" ]; then
+            echo "::warning title=Pending migrations::New EF migration(s) landed on master — run dotnet ef database update against Supabase."
+          fi

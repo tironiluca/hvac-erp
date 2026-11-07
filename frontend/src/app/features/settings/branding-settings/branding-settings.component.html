@@ -1,0 +1,180 @@
+<div class="hvac-page branding">
+  <header class="hvac-page__header">
+    <div>
+      <h1>{{ 'settings.brandingTitle' | transloco }}</h1>
+      <p class="hvac-page__subtitle">{{ 'settings.brandingSubtitle' | transloco }}</p>
+    </div>
+    <div class="hvac-page__actions">
+      <button
+        mat-stroked-button
+        type="button"
+        (click)="revertChanges()"
+        [disabled]="saving() || !dirtyFromStored()"
+      >
+        {{ 'settings.reset' | transloco }}
+      </button>
+      <button
+        mat-flat-button
+        color="primary"
+        type="button"
+        (click)="save()"
+        [disabled]="form.invalid || saving() || !dirtyFromStored()"
+      >
+        @if (saving()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          {{ 'settings.save' | transloco }}
+        }
+      </button>
+    </div>
+  </header>
+
+  <form [formGroup]="form" class="branding__grid">
+    <mat-card class="hvac-card">
+      <h2 class="hvac-card__title">{{ 'settings.colors' | transloco }}</h2>
+      <p class="hvac-card__hint">{{ 'settings.colorsHint' | transloco }}</p>
+
+      <div class="seed-row">
+        <span class="seed-row__label">{{ 'settings.primarySeed' | transloco }}</span>
+        <input
+          type="color"
+          class="seed-row__swatch"
+          [value]="form.controls.primarySeed.value"
+          (input)="syncHex('primarySeed', $any($event.target).value)"
+          [attr.aria-label]="'settings.primarySeed' | transloco"
+        />
+        <mat-form-field appearance="outline" class="seed-row__hex" subscriptSizing="dynamic">
+          <input matInput formControlName="primarySeed" maxlength="7" autocomplete="off" spellcheck="false" />
+          @if (form.controls.primarySeed.invalid && form.controls.primarySeed.touched) {
+            <mat-error>{{ 'settings.hexError' | transloco }}</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <div class="seed-row">
+        <span class="seed-row__label">{{ 'settings.tertiarySeed' | transloco }}</span>
+        <input
+          type="color"
+          class="seed-row__swatch"
+          [value]="form.controls.tertiarySeed.value"
+          (input)="syncHex('tertiarySeed', $any($event.target).value)"
+          [attr.aria-label]="'settings.tertiarySeed' | transloco"
+        />
+        <mat-form-field appearance="outline" class="seed-row__hex" subscriptSizing="dynamic">
+          <input matInput formControlName="tertiarySeed" maxlength="7" autocomplete="off" spellcheck="false" />
+          @if (form.controls.tertiarySeed.invalid && form.controls.tertiarySeed.touched) {
+            <mat-error>{{ 'settings.hexError' | transloco }}</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <div class="seed-row">
+        <span class="seed-row__label">{{ 'settings.neutralSeed' | transloco }}</span>
+        <input
+          type="color"
+          class="seed-row__swatch"
+          [value]="form.controls.neutralSeed.value"
+          (input)="syncHex('neutralSeed', $any($event.target).value)"
+          [attr.aria-label]="'settings.neutralSeed' | transloco"
+        />
+        <mat-form-field appearance="outline" class="seed-row__hex" subscriptSizing="dynamic">
+          <input matInput formControlName="neutralSeed" maxlength="7" autocomplete="off" spellcheck="false" />
+          @if (form.controls.neutralSeed.invalid && form.controls.neutralSeed.touched) {
+            <mat-error>{{ 'settings.hexError' | transloco }}</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <mat-form-field appearance="outline" class="branding__title-field">
+        <mat-label>{{ 'settings.portalTitle' | transloco }}</mat-label>
+        <input matInput formControlName="portalTitle" maxlength="200" />
+      </mat-form-field>
+    </mat-card>
+
+    <mat-card class="hvac-card">
+      <h2 class="hvac-card__title">{{ 'settings.assets' | transloco }}</h2>
+      <p class="hvac-card__hint">{{ 'settings.assetsHint' | transloco }}</p>
+
+      <div class="asset-grid">
+        @for (slot of assetSlots; track slot.kind) {
+          <div class="asset-slot">
+            <div
+              class="asset-slot__preview"
+              [class.asset-slot__preview--wide]="slot.kind === 'login-background'"
+            >
+              @if (assetUrl(slot.kind); as url) {
+                <img [src]="url" alt="" />
+              } @else {
+                <mat-icon>image</mat-icon>
+              }
+            </div>
+            <div class="asset-slot__meta">
+              <span class="asset-slot__name">{{ slot.labelKey | transloco }}</span>
+              <span class="asset-slot__hint">{{ slot.hintKey | transloco }}</span>
+              <input
+                #fileInput
+                type="file"
+                hidden
+                [accept]="slot.accept"
+                (change)="onFileSelected(slot.kind, $event)"
+              />
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="fileInput.click()"
+                [disabled]="uploading() !== null"
+              >
+                @if (uploading() === slot.kind) {
+                  <mat-spinner diameter="18" />
+                } @else {
+                  {{ 'settings.upload' | transloco }}
+                }
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </mat-card>
+
+    <mat-card class="hvac-card sampler">
+      <h2 class="hvac-card__title">{{ 'settings.preview' | transloco }}</h2>
+      <p class="hvac-card__hint">{{ 'settings.previewHint' | transloco }}</p>
+
+      <div class="sampler__row">
+        <button mat-flat-button color="primary" type="button">{{ 'settings.samplePrimary' | transloco }}</button>
+        <button mat-stroked-button color="primary" type="button">{{ 'settings.sampleOutlined' | transloco }}</button>
+        <mat-slide-toggle [checked]="true">{{ 'settings.sampleToggle' | transloco }}</mat-slide-toggle>
+      </div>
+
+      <div class="sampler__surfaces">
+        <span class="sampler__surface sampler__surface--low">{{ 'settings.surfaceLow' | transloco }}</span>
+        <span class="sampler__surface sampler__surface--mid">{{ 'settings.surfaceMid' | transloco }}</span>
+        <span class="sampler__surface sampler__surface--high">{{ 'settings.surfaceHigh' | transloco }}</span>
+        <span class="sampler__surface sampler__surface--primary">{{ 'settings.primarySeed' | transloco }}</span>
+        <span class="sampler__surface sampler__surface--tertiary">{{ 'settings.tertiarySeed' | transloco }}</span>
+      </div>
+    </mat-card>
+
+    <mat-card class="hvac-card personalization">
+      <h2 class="hvac-card__title">{{ 'settings.personalization' | transloco }}</h2>
+      <p class="hvac-card__hint">{{ 'settings.personalizationHint' | transloco }}</p>
+
+      <div class="pref-row">
+        <div class="pref-row__text">
+          <span class="pref-row__label">{{ 'settings.weekStart' | transloco }}</span>
+          <span class="pref-row__hint">{{ 'settings.weekStartHint' | transloco }}</span>
+        </div>
+        <mat-button-toggle-group
+          hideSingleSelectionIndicator
+          [value]="calendarPrefs.weekStart()"
+          (change)="setWeekStart($event.value)"
+          [attr.aria-label]="'settings.weekStart' | transloco"
+        >
+          <mat-button-toggle [value]="1">{{ 'settings.weekStartMon' | transloco }}</mat-button-toggle>
+          <mat-button-toggle [value]="0">{{ 'settings.weekStartSun' | transloco }}</mat-button-toggle>
+          <mat-button-toggle [value]="6">{{ 'settings.weekStartSat' | transloco }}</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+    </mat-card>
+  </form>
+</div>

@@ -1,0 +1,102 @@
+<h2 mat-dialog-title>{{ (isEdit ? 'clients.editTitle' : 'clients.newTitle') | transloco }}</h2>
+
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="form-grid">
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.code' | transloco }}</mat-label>
+      <input matInput formControlName="code" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.source' | transloco }}</mat-label>
+      <mat-select formControlName="sourceId">
+        <mat-option [value]="null"></mat-option>
+        @for (source of clientSources(); track source.id) {
+          <mat-option [value]="source.id">{{ source.description }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="span-2">
+      <mat-label>{{ 'clients.fullName' | transloco }}</mat-label>
+      <input matInput formControlName="fullName" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="span-2">
+      <mat-label>{{ 'clients.address' | transloco }}</mat-label>
+      <input matInput formControlName="address" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.city' | transloco }}</mat-label>
+      <input matInput formControlName="city" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.taxCode' | transloco }}</mat-label>
+      <input matInput formControlName="taxCode" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.phone' | transloco }}</mat-label>
+      <input matInput formControlName="phone" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.mobile' | transloco }}</mat-label>
+      <input matInput formControlName="mobile" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="span-2">
+      <mat-label>{{ 'clients.email' | transloco }}</mat-label>
+      <input matInput type="email" formControlName="email" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.shippingAddress' | transloco }}</mat-label>
+      <input matInput formControlName="shippingAddress" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>{{ 'clients.shippingCity' | transloco }}</mat-label>
+      <input matInput formControlName="shippingCity" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="span-2">
+      <mat-label>{{ 'clients.referredBy' | transloco }}</mat-label>
+      <input
+        matInput
+        [formControl]="referralControl"
+        [matAutocomplete]="referralAuto"
+        [placeholder]="'clients.referredByHint' | transloco"
+      />
+      @if (referralControl.value) {
+        <button matSuffix mat-icon-button type="button" (click)="clearReferral()">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+      <mat-autocomplete #referralAuto="matAutocomplete" [displayWith]="displayReferral" (optionSelected)="onReferralSelected($event)">
+        @for (option of referralOptions(); track option.id) {
+          <mat-option [value]="option">{{ option.fullName }} ({{ option.code }})</mat-option>
+        }
+      </mat-autocomplete>
+    </mat-form-field>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    @if (isEdit && isAdmin()) {
+      <button mat-button color="warn" type="button" class="client-dialog__delete" [disabled]="submitting()" (click)="deleteClient()">
+        <mat-icon>delete</mat-icon>
+        {{ 'common.delete' | transloco }}
+      </button>
+    }
+    <button mat-button type="button" (click)="cancel()">{{ 'common.cancel' | transloco }}</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || submitting()">
+      @if (submitting()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        {{ 'common.save' | transloco }}
+      }
+    </button>
+  </mat-dialog-actions>
+</form>

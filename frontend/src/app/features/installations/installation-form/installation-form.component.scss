@@ -1,0 +1,98 @@
+.installation-form {
+  padding: 24px;
+  max-width: 780px;
+  margin: 0 auto;
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+    padding: 48px 0;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 16px;
+
+    h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  &__workflow {
+    margin-top: 32px;
+
+    h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+
+  @media (max-width: 599px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.span-2 {
+  grid-column: span 2;
+
+  @media (max-width: 599px) {
+    grid-column: span 1;
+  }
+}
+
+.quote-readonly {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container-highest);
+
+  &__label {
+    font-size: 0.75rem;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.step-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 599px) {
+  .installation-form {
+    padding: 16px 12px;
+  }
+
+  .installation-form__header h1 {
+    font-size: 1.15rem;
+  }
+
+  .step-actions button {
+    flex: 1 1 auto;
+  }
+}

@@ -1,0 +1,10 @@
+// Frame the whole portal. `height: 100vh` + the global `box-sizing: border-box`
+// keeps the 2px border inside the viewport; `overflow: hidden` lets the shell
+// (which sets its own `height: 100vh` and scrolls internally) sit flush without
+// spilling a 2px page scrollbar.
+:host {
+  display: block;
+  height: 100vh;
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant);
+}
