@@ -106,7 +106,6 @@
               <input matInput type="number" formControlName="quantity" />
             </mat-form-field>
 
-            <ng-container *ngTemplateOutlet="lineSchemesTpl; context: { $implicit: form.controls.externalUnit }" />
           </div>
 
           <div class="step-actions">
@@ -138,7 +137,6 @@
                   <mat-label>{{ 'quotes.quantity' | transloco }}</mat-label>
                   <input matInput type="number" formControlName="quantity" />
                 </mat-form-field>
-                <ng-container *ngTemplateOutlet="lineSchemesTpl; context: { $implicit: control }" />
                 <button mat-icon-button type="button" (click)="removeInternalUnit(i)">
                   <mat-icon>delete</mat-icon>
                 </button>
@@ -294,9 +292,17 @@
                     <div [formGroupName]="i" class="repeatable-row">
                       <mat-checkbox formControlName="selected" [matTooltip]="scheme.description ?? ''">{{ scheme.label }}</mat-checkbox>
                       @if (scheme.kind === 'QuoteAmount' && control.value.selected) {
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="amount-mode">
+                          <mat-label>{{ 'quotes.amountMode.label' | transloco }}</mat-label>
+                          <mat-select formControlName="mode" (selectionChange)="setAmountMode(control, scheme, $event.value)">
+                            @for (mode of amountModes; track mode) {
+                              <mat-option [value]="mode">{{ 'quotes.amountMode.' + mode | transloco }}</mat-option>
+                            }
+                          </mat-select>
+                        </mat-form-field>
                         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                          <mat-label>{{ 'quotes.incentiveAmount' | transloco }}</mat-label>
-                          <input matInput type="number" min="0" formControlName="amount" [placeholder]="scheme.defaultAmount?.toString() ?? ''" />
+                          <mat-label>{{ 'quotes.amountValue.' + control.value.mode | transloco }}</mat-label>
+                          <input matInput type="number" min="0" formControlName="value" />
                         </mat-form-field>
                       }
                     </div>
@@ -461,6 +467,33 @@
           </button>
         </div>
 
+        @if (q.confirmed) {
+          <div class="quote-form__erp">
+            <span class="quote-form__erp-label">{{ 'quotes.erp.title' | transloco }}</span>
+            @if (erpExport(); as exp) {
+              <mat-chip [class]="erpChipClass(exp.status)">{{ 'quotes.erp.status.' + exp.status | transloco }}</mat-chip>
+              @if (exp.erpOrderNumber) {
+                <span>{{ 'quotes.erp.orderNumber' | transloco: { number: exp.erpOrderNumber } }}</span>
+              }
+              @if (exp.status !== 'Sent' && exp.lastError) {
+                <span class="quote-form__erp-error">{{ exp.lastError }}</span>
+              }
+            } @else {
+              <span class="quote-form__erp-none">{{ 'quotes.erp.none' | transloco }}</span>
+            }
+            @if (erpExport()?.status !== 'Sent') {
+              <button mat-stroked-button type="button" [disabled]="sendingToErp()" (click)="sendToErp()">
+                @if (sendingToErp()) {
+                  <mat-spinner diameter="18" />
+                } @else {
+                  <mat-icon>send</mat-icon>
+                }
+                {{ (erpExport()?.status === 'Failed' ? 'quotes.erp.retry' : 'quotes.erp.send') | transloco }}
+              </button>
+            }
+          </div>
+        }
+
         @if (q.recallNotes) {
           <p class="quote-form__recall-notes">{{ 'quotes.recallNotes' | transloco }}: {{ q.recallNotes }}</p>
         }
@@ -492,40 +525,3 @@
     }
   }
 </div>
-
-<!-- Line-level incentive schemes (e.g. warranty): tick, then % of list price or € per unit. -->
-<ng-template #lineSchemesTpl let-unit>
-  @for (scheme of lineSchemes(); track scheme.id) {
-    @let chosen = lineIncentive(unit, scheme.id);
-    <div class="line-scheme">
-      <mat-checkbox
-        [checked]="!!chosen"
-        [disabled]="unit.disabled"
-        (change)="setLineScheme(unit, scheme, $event.checked)"
-        [matTooltip]="scheme.description ?? ''"
-        >{{ scheme.label }}</mat-checkbox
-      >
-      @if (chosen) {
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="line-scheme__mode">
-          <mat-label>{{ 'quotes.lineMode.label' | transloco }}</mat-label>
-          <mat-select [value]="chosen.mode" [disabled]="unit.disabled" (selectionChange)="setLineMode(unit, scheme, $event.value)">
-            @for (mode of lineModes; track mode) {
-              <mat-option [value]="mode">{{ 'quotes.lineMode.' + mode | transloco }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="line-scheme__value">
-          <mat-label>{{ (chosen.mode === 'Fixed' ? 'quotes.lineValue.Fixed' : 'quotes.lineValue.Percent') | transloco }}</mat-label>
-          <input
-            matInput
-            type="number"
-            min="0"
-            [value]="chosen.value"
-            [disabled]="unit.disabled"
-            (change)="setLineValue(unit, scheme.id, $any($event.target).value)"
-          />
-        </mat-form-field>
-      }
-    </div>
-  }
-</ng-template>

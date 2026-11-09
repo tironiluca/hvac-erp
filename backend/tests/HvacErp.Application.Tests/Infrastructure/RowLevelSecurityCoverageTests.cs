@@ -12,7 +12,7 @@ public class RowLevelSecurityCoverageTests
     /// ENABLE ROW LEVEL SECURITY + policies (see the README's Authorization section) and then be
     /// listed here, so this check fails loudly instead of leaving a table open to the Data API.
     /// </summary>
-    private static readonly string[] SecuredByLaterMigrations = [.. IncentiveSchemes.SecuredTables];
+    private static readonly string[] SecuredByLaterMigrations = [.. IncentiveSchemes.SecuredTables, .. ErpIntegration.SecuredTables];
 
     [Fact]
     public void Every_model_table_is_covered_by_a_row_level_security_migration()
@@ -31,7 +31,9 @@ public class RowLevelSecurityCoverageTests
             .Append("__EFMigrationsHistory")
             .ToHashSet();
 
-        var secured = EnableRowLevelSecurity.AllTables.Concat(SecuredByLaterMigrations).ToHashSet();
+        var secured = EnableRowLevelSecurity.AllTables.Concat(SecuredByLaterMigrations)
+            .Except(QuoteLevelWarranty.DroppedTables)
+            .ToHashSet();
 
         Assert.Empty(modelTables.Except(secured));
         Assert.Empty(secured.Except(modelTables)); // catches typos in the migration's table lists

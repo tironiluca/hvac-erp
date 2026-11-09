@@ -5,7 +5,8 @@ namespace HvacErp.Application.Pricing;
 /// <summary>
 /// The incentive schemes a new installation starts with, as editable examples of each calculation
 /// kind: an energy-efficiency tax deduction (a paperwork fee in the invoice-discount basis), an
-/// equipment take-back note, a 50% invoice discount, and a per-line extended warranty. A deployment
+/// equipment take-back note, a 50% invoice discount, and an extended warranty charged with the
+/// equipment (a % of the equipment list total or a fixed amount, chosen per quote). A deployment
 /// renames, re-prices or deactivates them as data.
 /// </summary>
 public static class IncentiveSchemeDefaults
@@ -58,10 +59,12 @@ public static class IncentiveSchemeDefaults
         {
             Code = AllInclusiveWarranty,
             Label = "All-inclusive warranty",
-            Description = "Extended warranty per unit, priced at 8% of the unit's list price.",
-            Kind = IncentiveKinds.LineAmount,
+            Description = "Extended warranty for the whole quote: 8% of the equipment list total by default, or a fixed amount.",
+            Kind = IncentiveKinds.QuoteAmount,
             Percent = 8m,
+            DefaultAmount = 100m,
             AddToPrice = true,
+            ChargeBeforeVat = true,
             PdfInvoiceDiscountNote = "All-inclusive warranty included",
             SortOrder = 40,
         },

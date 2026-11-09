@@ -77,9 +77,13 @@ public static class PdfSampleData
             FinalPrice = 4260m,
             Incentives =
             [
-                new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.EnergyTaxDeduction), Amount = 150m },
-                new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.WeeeTakeBack), Amount = 30m },
+                new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.EnergyTaxDeduction), Mode = AmountModes.Fixed, Value = 150m, Amount = 150m },
+                new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.WeeeTakeBack), Mode = AmountModes.Fixed, Value = 30m, Amount = 30m },
                 new QuoteIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.InvoiceDiscount50), Amount = 5550m },
+                new QuoteIncentive
+                {
+                    IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Mode = AmountModes.Fixed, Value = 100m, Amount = 100m,
+                },
             ],
             InstallationPositionNotes = "Outdoor unit on the courtyard balcony; indoor units in the living room and main bedroom.",
             FloorPlanSketchJson = SampleFloorPlanSketch,
@@ -89,13 +93,11 @@ public static class PdfSampleData
                 {
                     Product = Unit("Daikin", "Sensira RXF25C", "-", "-"),
                     Role = ProductRole.ExternalUnit, Quantity = 1, Price = 900m, DiscountedPrice = 780m,
-                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Mode = LineAmountModes.Percent, Value = 8m, Amount = 72m }],
                 },
                 new QuoteProduct
                 {
                     Product = Unit("Daikin", "Sensira FTXF25C", "A++", "A+"),
                     Role = ProductRole.InternalUnit, Quantity = 2, Price = 520m, DiscountedPrice = 470m,
-                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Mode = LineAmountModes.Fixed, Value = 41.6m, Amount = 83.2m }],
                 },
             ],
             DuctedUnits =

@@ -61,4 +61,16 @@ describe('QuotesService', () => {
     expect(http.expectOne(`${base}/4`).request.method).toBe('DELETE');
     expect(http.expectOne(`${base}/4/attachments/9`).request.method).toBe('DELETE');
   });
+
+  it('reads and triggers the ERP export of a quote', () => {
+    let status: string | undefined;
+    service.getErpExport(4).subscribe((e) => (status = e?.status));
+    service.sendToErp(4).subscribe();
+
+    http.expectOne({ method: 'GET', url: `${base}/4/erp-export` }).flush({ quoteId: 4, status: 'Sent' });
+    const send = http.expectOne({ method: 'POST', url: `${base}/4/erp-export` });
+    send.flush({ quoteId: 4, status: 'Sent' });
+
+    expect(status).toBe('Sent');
+  });
 });

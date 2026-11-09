@@ -339,7 +339,6 @@ public class QuestPdfQuoteDocumentGenerator : IQuoteDocumentGenerator
         var scheme = discount.IncentiveScheme;
         var share = scheme.Percent ?? 100m;
         var notes = quote.Incentives.Select(i => i.IncentiveScheme)
-            .Concat(quote.Products.SelectMany(p => p.Incentives).Select(i => i.IncentiveScheme))
             .Where(s => s.Code != scheme.Code)
             .Where(s => !string.IsNullOrWhiteSpace(s.PdfInvoiceDiscountNote))
             .DistinctBy(s => s.Code)

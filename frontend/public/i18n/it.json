@@ -295,15 +295,14 @@
     "createdAt": "Data creazione",
     "predisposed": "Impianto predisposto",
     "incentives": "Incentivi e opzioni",
-    "incentiveAmount": "Importo (€)",
-    "lineMode": {
+    "amountMode": {
       "label": "Calcolo",
-      "Percent": "% sul listino",
-      "Fixed": "€ per unità"
+      "Fixed": "Importo fisso €",
+      "Percent": "% sul listino macchine"
     },
-    "lineValue": {
-      "Percent": "%",
-      "Fixed": "€ per unità"
+    "amountValue": {
+      "Fixed": "€",
+      "Percent": "%"
     },
     "invoiceDiscountNeedsVat": "Lo sconto in fattura è disponibile solo per preventivi con IVA.",
     "invoiceDiscountGrossTotal": "{{label}}: totale fattura (IVA e installazione comprese)",
@@ -395,7 +394,21 @@
     "surveyMarked": "Sopralluogo segnato come fatto",
     "recalled": "Cliente segnato come richiamato",
     "confirmed": "Preventivo confermato",
-    "deleted": "Preventivo eliminato"
+    "deleted": "Preventivo eliminato",
+    "erp": {
+      "title": "ERP principale",
+      "status": {
+        "Pending": "In coda",
+        "Sent": "Inviato",
+        "Failed": "Errore"
+      },
+      "orderNumber": "Ordine ERP {{number}}",
+      "none": "Non ancora inviato",
+      "send": "Invia all'ERP",
+      "retry": "Riprova invio",
+      "sent": "Inviato all'ERP come ordine {{number}}",
+      "notSent": "Non inviato: {{error}}"
+    }
   },
   "repairs": {
     "title": "Riparazioni e Revisioni",

@@ -275,22 +275,30 @@ mat-form-field {
   }
 }
 
-// A line-level incentive (e.g. warranty): tick, then mode and value side by side; wraps on phones.
-.line-scheme {
+// Quote amount mode (fixed € / % of equipment): wide enough for its label.
+.repeatable-row mat-form-field.amount-mode {
+  flex: 0 0 200px;
+}
+
+// ERP export line under the workflow actions.
+.quote-form__erp {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 8px 12px;
+  margin-top: 12px;
+}
 
-  mat-checkbox {
-    white-space: nowrap;
-  }
+.quote-form__erp-label {
+  font: var(--mat-sys-title-small);
+}
 
-  .line-scheme__mode {
-    flex: 0 0 170px;
-  }
+.quote-form__erp-none,
+.quote-form__erp-error {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}
 
-  .line-scheme__value {
-    flex: 0 0 110px;
-  }
+.quote-form__erp-error {
+  color: var(--mat-sys-error);
 }

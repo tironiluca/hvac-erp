@@ -483,6 +483,16 @@ public static class DemoDataSeeder
             VatCodes.Reduced10 => 1.10m,
             _ => 1.00m,
         };
+        // Extended warranty for a fifth of the quotes, charged with the equipment: mostly the scheme's
+        // percentage of the equipment list total, sometimes a flat amount, as staff may choose.
+        if (Chance(0.2) && Schemes.TryGetValue(IncentiveSchemeDefaults.AllInclusiveWarranty, out var warranty))
+        {
+            var (mode, value) = Chance(0.3) ? (AmountModes.Fixed, 100m) : QuotePricingService.DefaultQuoteAmount(warranty);
+            var amount = QuotePricingService.QuoteAmount(mode, value, QuotePricingService.EquipmentListTotal(quote));
+            quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = warranty.Id, Mode = mode, Value = value, Amount = amount });
+            machinesNet += amount;
+        }
+
         var machinesGross = Round2(machinesNet * grossMult);
         var installGross = Round2(installNet * grossMult);
         var raw = machinesGross + installGross - quote.ManualDiscount;
@@ -497,7 +507,7 @@ public static class DemoDataSeeder
         if (Chance(0.30) && Schemes.TryGetValue(IncentiveSchemeDefaults.EnergyTaxDeduction, out var deduction))
         {
             var fee = Rng.Next(1, 4) * 50m;
-            quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = deduction.Id, Amount = fee });
+            quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = deduction.Id, Mode = AmountModes.Fixed, Value = fee, Amount = fee });
             if (deduction.IncludeInInvoiceDiscountBasis)
             {
                 discountBasisExtra += fee;
@@ -505,7 +515,8 @@ public static class DemoDataSeeder
         }
         if (Chance(0.20) && Schemes.TryGetValue(IncentiveSchemeDefaults.WeeeTakeBack, out var weee))
         {
-            quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = weee.Id, Amount = Round2(Rng.Next(1, 4) * 15m) });
+            var weeeFee = Round2(Rng.Next(1, 4) * 15m);
+            quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = weee.Id, Mode = AmountModes.Fixed, Value = weeeFee, Amount = weeeFee });
         }
         if (vat != VatCodes.Exempt && Chance(0.15) && Schemes.TryGetValue(IncentiveSchemeDefaults.InvoiceDiscount50, out var discount))
         {
@@ -610,12 +621,6 @@ public static class DemoDataSeeder
                 {
                     ProductId = p.ProductId, Role = p.Role, Quantity = p.Quantity,
                     Price = p.Price, DiscountedPrice = p.DiscountedPrice,
-                    Incentives = p.Incentives
-                        .Select(i => new QuoteProductIncentive
-                        {
-                            IncentiveSchemeId = i.IncentiveSchemeId, Mode = i.Mode, Value = i.Value, Amount = i.Amount,
-                        })
-                        .ToList(),
                 });
             }
             foreach (var s in parent.ServiceItems)
@@ -637,7 +642,7 @@ public static class DemoDataSeeder
     private static QuoteProduct NewQuoteProduct(Product product, ProductRole role, int qty)
     {
         var discount = role == ProductRole.ExternalUnit ? 0.05m : Pick(new[] { 0.05m, 0.10m, 0.12m, 0.15m });
-        var line = new QuoteProduct
+        return new QuoteProduct
         {
             ProductId = product.Id,
             Role = role,
@@ -645,20 +650,6 @@ public static class DemoDataSeeder
             Price = product.Price,
             DiscountedPrice = Round2(product.Price * (1m - discount)),
         };
-        if (role == ProductRole.InternalUnit && Chance(0.2)
-            && Schemes.TryGetValue(IncentiveSchemeDefaults.AllInclusiveWarranty, out var warranty))
-        {
-            // Mostly the scheme's percentage; sometimes a flat €100 per unit, as staff may choose.
-            var (mode, value) = Chance(0.3) ? (LineAmountModes.Fixed, 100m) : QuotePricingService.DefaultLineAmount(warranty);
-            line.Incentives.Add(new QuoteProductIncentive
-            {
-                IncentiveSchemeId = warranty.Id,
-                Mode = mode,
-                Value = value,
-                Amount = QuotePricingService.LineAmount(mode, value, product.Price, qty),
-            });
-        }
-        return line;
     }
 
     private static decimal DiscountedLine(Product product, int qty) =>

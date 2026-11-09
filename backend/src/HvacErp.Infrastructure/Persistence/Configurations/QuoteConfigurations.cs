@@ -189,9 +189,7 @@ public class IncentiveSchemeConfiguration : IEntityTypeConfiguration<IncentiveSc
         // by hand cannot leave pricing without a rate or a step.
         builder.ToTable(t =>
         {
-            t.HasCheckConstraint("ck_incentive_schemes_kind", "kind IN ('QuoteAmount', 'LineAmount', 'InvoiceDiscount')");
-            t.HasCheckConstraint("ck_incentive_schemes_line_amount",
-                "kind <> 'LineAmount' OR default_amount IS NOT NULL OR percent IS NOT NULL");
+            t.HasCheckConstraint("ck_incentive_schemes_kind", "kind IN ('QuoteAmount', 'InvoiceDiscount')");
             t.HasCheckConstraint("ck_incentive_schemes_invoice_discount",
                 "kind <> 'InvoiceDiscount' OR (threshold IS NOT NULL AND rate_below_threshold > 0 "
                 + "AND rate_above_threshold > 0 AND rounding_step > 0 AND percent > 0 AND percent <= 100)");
@@ -205,35 +203,16 @@ public class QuoteIncentiveConfiguration : IEntityTypeConfiguration<QuoteIncenti
     public void Configure(EntityTypeBuilder<QuoteIncentive> builder)
     {
         builder.HasIndex(i => new { i.QuoteId, i.IncentiveSchemeId }).IsUnique();
+        builder.Property(i => i.Mode).HasMaxLength(10);
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_quote_incentives_mode", "mode IS NULL OR mode IN ('Fixed', 'Percent')");
+            t.HasCheckConstraint("ck_quote_incentives_value_non_negative", "value IS NULL OR value >= 0");
+        });
 
         builder.HasOne(i => i.Quote)
             .WithMany(q => q.Incentives)
             .HasForeignKey(i => i.QuoteId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(i => i.IncentiveScheme)
-            .WithMany()
-            .HasForeignKey(i => i.IncentiveSchemeId)
-            .OnDelete(DeleteBehavior.Restrict);
-    }
-}
-
-/// <summary>EF Core mapping for <see cref="QuoteProductIncentive"/>.</summary>
-public class QuoteProductIncentiveConfiguration : IEntityTypeConfiguration<QuoteProductIncentive>
-{
-    public void Configure(EntityTypeBuilder<QuoteProductIncentive> builder)
-    {
-        builder.HasIndex(i => new { i.QuoteProductId, i.IncentiveSchemeId }).IsUnique();
-        builder.Property(i => i.Mode).HasMaxLength(10).IsRequired();
-        builder.ToTable(t =>
-        {
-            t.HasCheckConstraint("ck_quote_product_incentives_mode", "mode IN ('Percent', 'Fixed')");
-            t.HasCheckConstraint("ck_quote_product_incentives_value_non_negative", "value >= 0");
-        });
-
-        builder.HasOne(i => i.QuoteProduct)
-            .WithMany(p => p.Incentives)
-            .HasForeignKey(i => i.QuoteProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(i => i.IncentiveScheme)

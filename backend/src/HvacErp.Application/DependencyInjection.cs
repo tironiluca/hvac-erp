@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using HvacErp.Application.Erp;
 using HvacErp.Application.Interfaces;
 using HvacErp.Application.Services;
 
@@ -26,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IBrandingService, BrandingService>();
         services.AddScoped<IPdfTemplateService, PdfTemplateService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IErpExportService, ErpExportService>();
         services.TryAddSingleton(TimeProvider.System);
 
         return services;

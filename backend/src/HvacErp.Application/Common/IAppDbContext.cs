@@ -36,7 +36,7 @@ public interface IAppDbContext
     DbSet<QuoteServiceItem> QuoteServiceItems { get; }
     DbSet<QuoteExtra> QuoteExtras { get; }
     DbSet<QuoteIncentive> QuoteIncentives { get; }
-    DbSet<QuoteProductIncentive> QuoteProductIncentives { get; }
+    DbSet<ErpOrderExport> ErpOrderExports { get; }
     DbSet<QuoteStatusEvent> QuoteStatusEvents { get; }
     DbSet<QuoteAttachment> QuoteAttachments { get; }
 

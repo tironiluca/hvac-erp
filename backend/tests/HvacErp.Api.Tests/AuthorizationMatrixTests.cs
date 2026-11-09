@@ -22,6 +22,7 @@ public class AuthorizationMatrixTests(ApiFactory factory) : IClassFixture<ApiFac
         { "POST", "/api/quotes/1/recall" },
         { "POST", "/api/quotes/1/survey" },
         { "POST", "/api/quotes/1/incentives/1/confirmation" },
+        { "POST", "/api/quotes/1/erp-export" },
         { "DELETE", "/api/quotes/1" },
         { "POST", "/api/quotes/1/pdf" },
         { "POST", "/api/repairs" },

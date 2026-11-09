@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using HvacErp.Application.Common;
+using HvacErp.Infrastructure.Erp;
 using HvacErp.Domain.Entities;
 
 namespace HvacErp.Infrastructure.Persistence;
@@ -39,7 +40,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<QuoteServiceItem> QuoteServiceItems => Set<QuoteServiceItem>();
     public DbSet<QuoteExtra> QuoteExtras => Set<QuoteExtra>();
     public DbSet<QuoteIncentive> QuoteIncentives => Set<QuoteIncentive>();
-    public DbSet<QuoteProductIncentive> QuoteProductIncentives => Set<QuoteProductIncentive>();
+    public DbSet<ErpOrderExport> ErpOrderExports => Set<ErpOrderExport>();
+    public DbSet<MockErpOrder> MockErpOrders => Set<MockErpOrder>();
     public DbSet<QuoteStatusEvent> QuoteStatusEvents => Set<QuoteStatusEvent>();
     public DbSet<QuoteAttachment> QuoteAttachments => Set<QuoteAttachment>();
 

@@ -295,15 +295,14 @@
     "createdAt": "Created",
     "predisposed": "Pre-installed wiring",
     "incentives": "Incentives and options",
-    "incentiveAmount": "Amount (€)",
-    "lineMode": {
+    "amountMode": {
       "label": "Priced as",
-      "Percent": "% of list price",
-      "Fixed": "€ per unit"
+      "Fixed": "Fixed €",
+      "Percent": "% of equipment list price"
     },
-    "lineValue": {
-      "Percent": "%",
-      "Fixed": "€ per unit"
+    "amountValue": {
+      "Fixed": "€",
+      "Percent": "%"
     },
     "invoiceDiscountNeedsVat": "The invoice discount is only available on quotes that carry VAT.",
     "invoiceDiscountGrossTotal": "{{label}}: invoice total (VAT and installation included)",
@@ -395,7 +394,21 @@
     "surveyMarked": "Survey marked as done",
     "recalled": "Client marked as recalled",
     "confirmed": "Quote confirmed",
-    "deleted": "Quote deleted"
+    "deleted": "Quote deleted",
+    "erp": {
+      "title": "Main ERP",
+      "status": {
+        "Pending": "Queued",
+        "Sent": "Sent",
+        "Failed": "Failed"
+      },
+      "orderNumber": "ERP order {{number}}",
+      "none": "Not sent yet",
+      "send": "Send to ERP",
+      "retry": "Retry sending",
+      "sent": "Sent to the ERP as order {{number}}",
+      "notSent": "Not sent: {{error}}"
+    }
   },
   "repairs": {
     "title": "Repairs & Revisions",

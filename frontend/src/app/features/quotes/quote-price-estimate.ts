@@ -1,4 +1,4 @@
-import { DiscountTier, ExtraType, IncentiveScheme, LineAmountMode, Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
+import { AmountMode, DiscountTier, ExtraType, IncentiveScheme, Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
 import { DuctSystemType } from '../../core/models/quote.model';
 
 /**
@@ -11,6 +11,8 @@ export interface PriceEstimate {
   machinesPrice: number;
   installationPrice: number;
   finalPrice: number;
+  /** Each selected quote-amount scheme's amount, by scheme id. */
+  incentiveAmounts?: Record<number, number>;
   /** The selected invoice-discount scheme's grossed-up total and the customer's share; absent when none applies. */
   invoiceDiscount?: { schemeId: number; grossedTotal: number; customerAmount: number };
   warning?: 'gasMismatch' | 'powerExceeded';
@@ -19,20 +21,14 @@ export interface PriceEstimate {
 export interface EstimateUnitLine {
   productId: number | null;
   quantity: number;
-  /** `LineAmount` incentive schemes on the line, each priced as chosen there. */
-  incentives?: EstimateLineIncentive[];
-}
-
-export interface EstimateLineIncentive {
-  incentiveSchemeId: number;
-  mode: LineAmountMode;
-  value: number;
 }
 
 export interface EstimateIncentiveLine {
   incentiveSchemeId: number;
   selected: boolean;
-  amount: number | null;
+  /** QuoteAmount: fixed € or % of the equipment list total, and its value (null: the scheme default). */
+  mode: AmountMode | null;
+  value: number | null;
 }
 
 export interface EstimateDuctedUnit {
@@ -129,13 +125,13 @@ export function unitPrice(product: Product, predisposed: boolean): number {
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
-/** Line incentive amount (mirrors `QuotePricingService.LineAmount`): `value` % of the list unit price, or `value` €; per unit. */
-export function lineAmount(mode: LineAmountMode, value: number, listUnit: number, quantity: number): number {
-  return round2((mode === 'Fixed' ? value : (listUnit * value) / 100) * quantity);
+/** Quote amount (mirrors `QuotePricingService.QuoteAmount`): `value` €, or `value` % of the equipment list total. */
+export function quoteAmount(mode: AmountMode, value: number, equipmentListTotal: number): number {
+  return round2(mode === 'Percent' ? (equipmentListTotal * value) / 100 : value);
 }
 
-/** The mode and value a newly ticked line starts with (mirrors `QuotePricingService.DefaultLineAmount`). */
-export function defaultLineAmount(scheme: IncentiveScheme): { mode: LineAmountMode; value: number } {
+/** The mode and value a newly ticked scheme starts with (mirrors `QuotePricingService.DefaultQuoteAmount`). */
+export function defaultQuoteAmount(scheme: IncentiveScheme): { mode: AmountMode; value: number } {
   return scheme.percent != null ? { mode: 'Percent', value: scheme.percent } : { mode: 'Fixed', value: scheme.defaultAmount ?? 0 };
 }
 
@@ -192,18 +188,33 @@ export function estimateQuotePrice(raw: EstimateFormValue, catalog: EstimateCata
   const schemeById = new Map((catalog.incentiveSchemes ?? []).map((s) => [s.id, s]));
 
   let machinesPrice = 0;
+  let equipmentListTotal = 0;
   for (const line of [raw.externalUnit, ...raw.internalUnits]) {
     const product = findProduct(line.productId);
     if (!product) continue;
     machinesPrice += unitPrice(product, raw.predisposed) * line.quantity;
-    // Line schemes (e.g. a warranty) charged on the machines side, before the VAT blend.
-    for (const incentive of line.incentives ?? []) {
-      const scheme = schemeById.get(incentive.incentiveSchemeId);
-      if (scheme?.kind === 'LineAmount' && scheme.addToPrice) {
-        machinesPrice += lineAmount(incentive.mode, incentive.value ?? 0, listUnitPrice(product, raw.predisposed), line.quantity);
-      }
-    }
+    equipmentListTotal += listUnitPrice(product, raw.predisposed) * line.quantity;
   }
+
+  // Quote amounts (fees, the warranty…): fixed €, or % of the equipment list total.
+  const selectedIncentives = (raw.incentives ?? [])
+    .filter((i) => i.selected)
+    .map((i) => ({ line: i, scheme: schemeById.get(i.incentiveSchemeId) }))
+    .filter((i): i is { line: EstimateIncentiveLine; scheme: IncentiveScheme } => !!i.scheme);
+  const incentiveAmounts: Record<number, number> = {};
+  for (const { line, scheme } of selectedIncentives.filter((i) => i.scheme.kind === 'QuoteAmount')) {
+    const fallback = defaultQuoteAmount(scheme);
+    const mode = line.mode ?? fallback.mode;
+    const value = line.value ?? (mode === fallback.mode ? fallback.value : mode === 'Fixed' ? (scheme.defaultAmount ?? 0) : (scheme.percent ?? 0));
+    incentiveAmounts[scheme.id] = quoteAmount(mode, value, equipmentListTotal);
+  }
+  const quoteAmounts = selectedIncentives.filter((i) => i.scheme.kind === 'QuoteAmount');
+  const chargedAmount = (beforeVat: boolean) =>
+    quoteAmounts
+      .filter((i) => i.scheme.addToPrice && i.scheme.chargeBeforeVat === beforeVat)
+      .reduce((sum, i) => sum + incentiveAmounts[i.scheme.id], 0);
+  // Charged before VAT (e.g. the warranty) goes on the machines side of the blend.
+  machinesPrice += chargedAmount(true);
 
   // Ducted-system accessories are priced from their service-item rows and added to the machines
   // side of the blend (mirrors QuotePricingService.PriceDuctedAccessoriesAsync).
@@ -253,16 +264,8 @@ export function estimateQuotePrice(raw: EstimateFormValue, catalog: EstimateCata
     }
   }
 
-  const selectedIncentives = (raw.incentives ?? [])
-    .filter((i) => i.selected)
-    .map((i) => ({ line: i, scheme: schemeById.get(i.incentiveSchemeId) }))
-    .filter((i): i is { line: EstimateIncentiveLine; scheme: IncentiveScheme } => !!i.scheme);
-  const quoteAmount = (i: { line: EstimateIncentiveLine; scheme: IncentiveScheme }) => i.line.amount ?? i.scheme.defaultAmount ?? 0;
-  const quoteAmounts = selectedIncentives.filter((i) => i.scheme.kind === 'QuoteAmount');
-
   const blended = blendVat(raw.vat, machinesPrice, installationPrice, catalog.vatOptions);
-  const charged = quoteAmounts.filter((i) => i.scheme.addToPrice).reduce((sum, i) => sum + quoteAmount(i), 0);
-  const finalPrice = blended + extrasFlat + ductedOutletsFlat + charged + (raw.manualDiscount ?? 0);
+  const finalPrice = blended + extrasFlat + ductedOutletsFlat + chargedAmount(false) + (raw.manualDiscount ?? 0);
 
   // Invoice discount: basis = final price with the manual discount added back, plus the quote
   // amounts flagged into the basis (mirrors QuotePricingService.PriceInvoiceDiscounts).
@@ -273,7 +276,7 @@ export function estimateQuotePrice(raw: EstimateFormValue, catalog: EstimateCata
     const basis =
       finalPrice -
       (raw.manualDiscount ?? 0) +
-      quoteAmounts.filter((i) => i.scheme.includeInInvoiceDiscountBasis).reduce((sum, i) => sum + quoteAmount(i), 0);
+      quoteAmounts.filter((i) => i.scheme.includeInInvoiceDiscountBasis).reduce((sum, i) => sum + incentiveAmounts[i.scheme.id], 0);
     const grossedTotal = invoiceDiscountTotal(discount.scheme, basis);
     invoiceDiscount = {
       schemeId: discount.scheme.id,
@@ -282,7 +285,7 @@ export function estimateQuotePrice(raw: EstimateFormValue, catalog: EstimateCata
     };
   }
 
-  return { machinesPrice, installationPrice, finalPrice, invoiceDiscount, warning: compatibilityWarning(raw, findProduct) };
+  return { machinesPrice, installationPrice, finalPrice, incentiveAmounts, invoiceDiscount, warning: compatibilityWarning(raw, findProduct) };
 }
 
 /** Mirrors `QuotePricingService.ValidateCompatibility` as a soft warning instead of a 400. */

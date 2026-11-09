@@ -1,4 +1,4 @@
-import { IncentiveKind, LineAmountMode } from './lookup.model';
+import { AmountMode, IncentiveKind } from './lookup.model';
 import { FloorPlanSketch } from './floor-plan-sketch.model';
 
 export type QuoteDepartment = 'Store' | 'Field';
@@ -30,18 +30,8 @@ export interface QuoteProduct {
   quantity: number;
   price: number;
   discountedPrice: number;
-  incentives: QuoteProductIncentive[];
 }
 
-/** A line-level incentive (e.g. an extended warranty): the mode and value chosen on the line, and the server-computed amount. */
-export interface QuoteProductIncentive {
-  incentiveSchemeId: number;
-  code: string;
-  label: string;
-  mode: LineAmountMode;
-  value: number;
-  amount: number;
-}
 
 /**
  * A quote-level incentive. `amount` is the entered amount, or for an invoice discount the
@@ -52,6 +42,9 @@ export interface QuoteIncentive {
   code: string;
   label: string;
   kind: IncentiveKind;
+  /** QuoteAmount: fixed € or % of the equipment list total, and its value. */
+  mode?: AmountMode | null;
+  value?: number | null;
   amount?: number | null;
   customerAmount?: number | null;
   requiresConfirmation: boolean;
@@ -158,21 +151,13 @@ export interface QuoteProductInput {
   productId: number;
   role: ProductRole;
   quantity: number;
-  /** `LineAmount` incentive schemes on this line (e.g. an extended warranty), each priced as chosen. */
-  incentives: QuoteProductIncentiveInput[];
 }
 
-/** A line-level incentive: `Percent` of the list unit price or `Fixed` € per unit. */
-export interface QuoteProductIncentiveInput {
-  incentiveSchemeId: number;
-  mode: LineAmountMode;
-  value: number;
-}
-
-/** A quote-level incentive; `amount` applies to `QuoteAmount` schemes (omitted: the scheme default). */
+/** An incentive on a quote; `mode` / `value` apply to `QuoteAmount` schemes (omitted: the scheme default). */
 export interface QuoteIncentiveInput {
   incentiveSchemeId: number;
-  amount?: number;
+  mode?: AmountMode;
+  value?: number;
 }
 
 export interface DuctedUnitOutletInput {
@@ -227,4 +212,17 @@ export interface RecallQuoteRequest {
 
 export interface QuotePdfResponse {
   url: string;
+}
+
+/** A confirmed quote's export to the main ERP (backend `ErpExportDto`). */
+export interface ErpExport {
+  quoteId: number;
+  status: 'Pending' | 'Sent' | 'Failed';
+  connector: string;
+  attempts: number;
+  erpOrderNumber?: string | null;
+  lastError?: string | null;
+  createdAt: string;
+  sentAt?: string | null;
+  nextAttemptAt?: string | null;
 }

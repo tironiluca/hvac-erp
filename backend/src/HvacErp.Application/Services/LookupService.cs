@@ -79,7 +79,7 @@ public class LookupService(IAppDbContext context) : ILookupService
     public async Task<List<IncentiveSchemeDto>> GetIncentiveSchemesAsync(CancellationToken cancellationToken = default) =>
         await context.IncentiveSchemes.Where(s => s.Active).OrderBy(s => s.SortOrder).ThenBy(s => s.Label)
             .Select(s => new IncentiveSchemeDto(
-                s.Id, s.Code, s.Label, s.Description, s.Kind, s.DefaultAmount, s.Percent, s.AddToPrice,
+                s.Id, s.Code, s.Label, s.Description, s.Kind, s.DefaultAmount, s.Percent, s.AddToPrice, s.ChargeBeforeVat,
                 s.IncludeInInvoiceDiscountBasis, s.RequiresVat, s.RequiresConfirmation,
                 s.Threshold, s.RateBelowThreshold, s.RateAboveThreshold, s.RoundingStep, s.SortOrder))
             .ToListAsync(cancellationToken);

@@ -118,7 +118,7 @@ public class PostgresIntegrationTests
     }
 
     /// <summary>
-    /// IncentiveSchemes against an existing Italian deployment: the ENEA / RAEE / invoice-discount
+    /// IncentiveSchemes (and the later QuoteLevelWarranty) against an existing Italian deployment: the ENEA / RAEE / invoice-discount
     /// flags and the line warranties become scheme rows with the same amounts and acceptance, the
     /// schemes are seeded in Italian, the quote template's options are mapped, and Down restores the
     /// old columns.
@@ -180,9 +180,11 @@ public class PostgresIntegrationTests
             Assert.Equal((IncentiveSchemeDefaults.InvoiceDiscount50, false), (second.IncentiveScheme.Code, second.Confirmed));
             Assert.DoesNotContain(incentives, i => i.Quote.Number == 3);
 
-            var warranty = Assert.Single(await db.QuoteProductIncentives.ToListAsync());
-            Assert.Equal(40m, warranty.Amount); // the stored amount is kept
-            Assert.Equal((LineAmountModes.Percent, 8m), (warranty.Mode, warranty.Value)); // LineIncentiveMode: the scheme's 8%
+            // QuoteLevelWarranty: the line warranty became one fixed amount on its quote, total unchanged.
+            var warranty = first[IncentiveSchemeDefaults.AllInclusiveWarranty];
+            Assert.Equal((AmountModes.Fixed, 40m, 40m), (warranty.Mode, warranty.Value, warranty.Amount));
+            Assert.Equal(IncentiveKinds.QuoteAmount, schemes[IncentiveSchemeDefaults.AllInclusiveWarranty].Kind);
+            Assert.True(schemes[IncentiveSchemeDefaults.AllInclusiveWarranty].ChargeBeforeVat);
 
             var summary = PdfJson.Deserialize((await db.PdfTemplates.SingleAsync()).DefinitionJson)
                 .Sections.Single(s => s.Type == "quote.pricingSummary");

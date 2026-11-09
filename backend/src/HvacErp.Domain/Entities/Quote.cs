@@ -99,9 +99,6 @@ public class QuoteProduct
     public int Quantity { get; set; } = 1;
     public decimal Price { get; set; }
     public decimal DiscountedPrice { get; set; }
-
-    /// <summary>Per-line options such as an extended warranty (<see cref="IncentiveKinds.LineAmount"/> schemes).</summary>
-    public ICollection<QuoteProductIncentive> Incentives { get; set; } = new List<QuoteProductIncentive>();
 }
 
 /// <summary>Ducted ("canalizzato") system configuration for one quote — the shared plenum/hose/remote

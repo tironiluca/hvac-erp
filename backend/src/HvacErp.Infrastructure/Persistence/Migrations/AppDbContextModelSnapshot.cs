@@ -337,6 +337,78 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HvacErp.Domain.Entities.ErpOrderExport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("Connector")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("connector");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ErpOrderNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("erp_order_number");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload_json");
+
+                    b.Property<int>("QuoteId")
+                        .HasColumnType("integer")
+                        .HasColumnName("quote_id");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_order_exports");
+
+                    b.HasIndex("QuoteId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_erp_order_exports_quote_id");
+
+                    b.HasIndex("Status", "NextAttemptAt")
+                        .HasDatabaseName("ix_erp_order_exports_status_next_attempt_at");
+
+                    b.ToTable("erp_order_exports", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_erp_order_exports_status", "status IN ('Pending', 'Sent', 'Failed')");
+                        });
+                });
+
             modelBuilder.Entity("HvacErp.Domain.Entities.ExtraType", b =>
                 {
                     b.Property<int>("Id")
@@ -464,6 +536,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("add_to_price");
 
+                    b.Property<bool>("ChargeBeforeVat")
+                        .HasColumnType("boolean")
+                        .HasColumnName("charge_before_vat");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -547,9 +623,7 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_incentive_schemes_invoice_discount", "kind <> 'InvoiceDiscount' OR (threshold IS NOT NULL AND rate_below_threshold > 0 AND rate_above_threshold > 0 AND rounding_step > 0 AND percent > 0 AND percent <= 100)");
 
-                            t.HasCheckConstraint("ck_incentive_schemes_kind", "kind IN ('QuoteAmount', 'LineAmount', 'InvoiceDiscount')");
-
-                            t.HasCheckConstraint("ck_incentive_schemes_line_amount", "kind <> 'LineAmount' OR default_amount IS NOT NULL OR percent IS NOT NULL");
+                            t.HasCheckConstraint("ck_incentive_schemes_kind", "kind IN ('QuoteAmount', 'InvoiceDiscount')");
                         });
                 });
 
@@ -1291,9 +1365,18 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("incentive_scheme_id");
 
+                    b.Property<string>("Mode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("mode");
+
                     b.Property<int>("QuoteId")
                         .HasColumnType("integer")
                         .HasColumnName("quote_id");
+
+                    b.Property<decimal?>("Value")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("value");
 
                     b.HasKey("Id")
                         .HasName("pk_quote_incentives");
@@ -1305,7 +1388,12 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_quote_incentives_quote_id_incentive_scheme_id");
 
-                    b.ToTable("quote_incentives", (string)null);
+                    b.ToTable("quote_incentives", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_quote_incentives_mode", "mode IS NULL OR mode IN ('Fixed', 'Percent')");
+
+                            t.HasCheckConstraint("ck_quote_incentives_value_non_negative", "value IS NULL OR value >= 0");
+                        });
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProduct", b =>
@@ -1355,55 +1443,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.ToTable("quote_products", null, t =>
                         {
                             t.HasCheckConstraint("ck_quote_products_quantity_positive", "quantity >= 1");
-                        });
-                });
-
-            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProductIncentive", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("amount");
-
-                    b.Property<int>("IncentiveSchemeId")
-                        .HasColumnType("integer")
-                        .HasColumnName("incentive_scheme_id");
-
-                    b.Property<string>("Mode")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("mode");
-
-                    b.Property<int>("QuoteProductId")
-                        .HasColumnType("integer")
-                        .HasColumnName("quote_product_id");
-
-                    b.Property<decimal>("Value")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("value");
-
-                    b.HasKey("Id")
-                        .HasName("pk_quote_product_incentives");
-
-                    b.HasIndex("IncentiveSchemeId")
-                        .HasDatabaseName("ix_quote_product_incentives_incentive_scheme_id");
-
-                    b.HasIndex("QuoteProductId", "IncentiveSchemeId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_quote_product_incentives_quote_product_id_incentive_scheme_");
-
-                    b.ToTable("quote_product_incentives", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_quote_product_incentives_mode", "mode IN ('Percent', 'Fixed')");
-
-                            t.HasCheckConstraint("ck_quote_product_incentives_value_non_negative", "value >= 0");
                         });
                 });
 
@@ -1961,6 +2000,60 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.ToTable("vat_options", (string)null);
                 });
 
+            modelBuilder.Entity("HvacErp.Infrastructure.Erp.MockErpOrder", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("customer_name");
+
+                    b.Property<string>("ExternalReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("external_reference");
+
+                    b.Property<decimal>("FinalPrice")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("final_price");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_count");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("order_number");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload_json");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_mock_erp_orders");
+
+                    b.HasIndex("ExternalReference")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mock_erp_orders_external_reference");
+
+                    b.ToTable("mock_erp_orders", (string)null);
+                });
+
             modelBuilder.Entity("HvacErp.Domain.Entities.AppUser", b =>
                 {
                     b.HasOne("HvacErp.Domain.Entities.Installer", "Installer")
@@ -2020,6 +2113,18 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_ducted_unit_outlets_duct_system_types_system_type");
 
                     b.Navigation("DuctedUnit");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.ErpOrderExport", b =>
+                {
+                    b.HasOne("HvacErp.Domain.Entities.Quote", "Quote")
+                        .WithMany()
+                        .HasForeignKey("QuoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_order_exports_quotes_quote_id");
+
+                    b.Navigation("Quote");
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.FGasRecord", b =>
@@ -2208,27 +2313,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("Quote");
-                });
-
-            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProductIncentive", b =>
-                {
-                    b.HasOne("HvacErp.Domain.Entities.IncentiveScheme", "IncentiveScheme")
-                        .WithMany()
-                        .HasForeignKey("IncentiveSchemeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_quote_product_incentives_incentive_schemes_incentive_scheme");
-
-                    b.HasOne("HvacErp.Domain.Entities.QuoteProduct", "QuoteProduct")
-                        .WithMany("Incentives")
-                        .HasForeignKey("QuoteProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_quote_product_incentives_quote_products_quote_product_id");
-
-                    b.Navigation("IncentiveScheme");
-
-                    b.Navigation("QuoteProduct");
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.QuoteServiceItem", b =>
@@ -2433,11 +2517,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Navigation("ServiceItems");
 
                     b.Navigation("StatusEvents");
-                });
-
-            modelBuilder.Entity("HvacErp.Domain.Entities.QuoteProduct", b =>
-                {
-                    b.Navigation("Incentives");
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.Repair", b =>

@@ -28,8 +28,8 @@ public record ExtraTypeDto(
 
 /// <summary>
 /// An incentive scheme with its calculation (<see cref="Domain.Entities.IncentiveScheme"/>). The quote
-/// wizard offers quote-level schemes on the quote and <c>LineAmount</c> schemes on each product line,
-/// and its live price preview mirrors the server calculation from these parameters.
+/// wizard offers them on the quote, and its live price preview mirrors the server calculation from
+/// these parameters.
 /// </summary>
 public record IncentiveSchemeDto(
     int Id,
@@ -40,6 +40,7 @@ public record IncentiveSchemeDto(
     decimal? DefaultAmount,
     decimal? Percent,
     bool AddToPrice,
+    bool ChargeBeforeVat,
     bool IncludeInInvoiceDiscountBasis,
     bool RequiresVat,
     bool RequiresConfirmation,

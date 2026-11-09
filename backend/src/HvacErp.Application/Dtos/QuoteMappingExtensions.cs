@@ -7,8 +7,7 @@ namespace HvacErp.Application.Dtos;
 /// <summary>
 /// Maps loaded Quote aggregates to DTOs. Callers must have eager-loaded Client, Operator,
 /// Products (with Product), DuctedUnits (with Outlets), ServiceItems (with ServiceItem),
-/// Extras (with ExtraType), Incentives (with IncentiveScheme), Products' Incentives (with
-/// IncentiveScheme), StatusEvents and Attachments.
+/// Extras (with ExtraType), Incentives (with IncentiveScheme), StatusEvents and Attachments.
 /// </summary>
 public static class QuoteMappingExtensions
 {
@@ -59,16 +58,12 @@ public static class QuoteMappingExtensions
     /// <summary>Maps a quote child row to its DTO.</summary>
     public static QuoteProductDto ToDto(this QuoteProduct p) => new(
         p.Id, p.ProductId, p.Product.Brand, p.Product.Model, p.Role, p.Quantity,
-        p.Price, p.DiscountedPrice,
-        p.Incentives.OrderBy(i => i.IncentiveScheme.SortOrder)
-            .Select(i => new QuoteProductIncentiveDto(
-                i.IncentiveSchemeId, i.IncentiveScheme.Code, i.IncentiveScheme.Label, i.Mode, i.Value, i.Amount))
-            .ToList());
+        p.Price, p.DiscountedPrice);
 
     /// <summary>Maps a quote incentive (with its scheme loaded) to its DTO.</summary>
     public static QuoteIncentiveDto ToDto(this QuoteIncentive i) => new(
         i.IncentiveSchemeId, i.IncentiveScheme.Code, i.IncentiveScheme.Label, i.IncentiveScheme.Kind,
-        i.Amount, i.CustomerAmount(), i.IncentiveScheme.RequiresConfirmation, i.Confirmed);
+        i.Mode, i.Value, i.Amount, i.CustomerAmount(), i.IncentiveScheme.RequiresConfirmation, i.Confirmed);
 
     /// <summary>What the customer pays under an invoice discount (its share of the grossed-up total); null otherwise.</summary>
     public static decimal? CustomerAmount(this QuoteIncentive i) =>

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using HvacErp.Api.Authorization;
 using HvacErp.Application.Dtos;
+using HvacErp.Application.Erp;
 using HvacErp.Application.Interfaces;
 using HvacErp.Domain.Enums;
 
@@ -11,7 +12,11 @@ namespace HvacErp.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/quotes")]
-public class QuotesController(IQuoteService quotes, IQuotePdfService pdf, IQuoteAttachmentService attachments) : ControllerBase
+public class QuotesController(
+    IQuoteService quotes,
+    IQuotePdfService pdf,
+    IQuoteAttachmentService attachments,
+    IErpExportService erp) : ControllerBase
 {
     /// <summary>Lists quotes newest first, optionally for one client.</summary>
     [HttpGet]
@@ -64,6 +69,23 @@ public class QuotesController(IQuoteService quotes, IQuotePdfService pdf, IQuote
         await quotes.ConfirmAsync(id, cancellationToken);
         return NoContent();
     }
+
+    /// <summary>
+    /// The quote's export to the main ERP (status, order number, last error); 204 when it has none
+    /// (not confirmed yet, or confirmed before the integration was switched on).
+    /// </summary>
+    [HttpGet("{id:int}/erp-export")]
+    public async Task<ActionResult<ErpExportDto>> GetErpExport(int id, CancellationToken cancellationToken) =>
+        await erp.GetAsync(id, cancellationToken) is { } export ? Ok(export) : NoContent();
+
+    /// <summary>
+    /// Sends a confirmed quote to the main ERP now (creating the export if needed, retrying a failed
+    /// one) and returns the outcome. 400 when no ERP is configured or the quote is not confirmed.
+    /// </summary>
+    [HttpPost("{id:int}/erp-export")]
+    [Authorize(Policy = Policies.SalesOrAdmin)]
+    public async Task<ActionResult<ErpExportDto>> SendToErp(int id, CancellationToken cancellationToken) =>
+        Ok(await erp.SendNowAsync(id, cancellationToken));
 
     /// <summary>
     /// Flips the customer's acceptance of an incentive that needs it (e.g. an invoice discount);

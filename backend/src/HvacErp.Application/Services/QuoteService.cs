@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HvacErp.Application.Common;
 using HvacErp.Application.Dtos;
+using HvacErp.Application.Erp;
 using HvacErp.Application.Interfaces;
 using HvacErp.Domain.Entities;
 using HvacErp.Domain.Enums;
@@ -12,7 +13,8 @@ public class QuoteService(
     IAppDbContext context,
     IQuoteNumberingService numbering,
     IQuotePricingService pricing,
-    ICurrentUser currentUser) : IQuoteService
+    ICurrentUser currentUser,
+    IErpExportService? erp = null) : IQuoteService
 {
     public async Task<List<QuoteListItemDto>> GetListAsync(int? clientId = null, CancellationToken cancellationToken = default)
     {
@@ -61,7 +63,6 @@ public class QuoteService(
             .Include(q => q.ServiceItems)
             .Include(q => q.Extras)
             .Include(q => q.Incentives)
-            .Include(q => q.Products).ThenInclude(p => p.Incentives)
             .FirstOrDefaultAsync(q => q.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Quote), id);
 
@@ -77,7 +78,6 @@ public class QuoteService(
         context.QuoteExtras.RemoveRange(quote.Extras);
         // Customer acceptances are not part of the edit form: they survive a save.
         var previousIncentives = quote.Incentives.ToDictionary(i => i.IncentiveSchemeId);
-        context.QuoteProductIncentives.RemoveRange(quote.Products.SelectMany(p => p.Incentives));
         context.QuoteIncentives.RemoveRange(quote.Incentives);
         quote.Products.Clear();
         quote.DuctedUnits.Clear();
@@ -113,6 +113,11 @@ public class QuoteService(
         currentUser.EnsureInRole("confirm a quote", UserRole.Sales, UserRole.Admin);
         var quote = await GetTrackedAsync(id, cancellationToken);
         AppendStatusEvent(quote, QuoteStatusCodes.Confirmed, notes: null);
+        if (erp is not null)
+        {
+            // Same transaction as the confirmation: the order cannot be lost if the ERP is down.
+            await erp.EnqueueAsync(id, quote.StatusEvents.Last().OccurredAt, cancellationToken);
+        }
         await context.SaveChangesAsync(cancellationToken);
     }
 
@@ -176,7 +181,6 @@ public class QuoteService(
             .Include(q => q.Client)
             .Include(q => q.Operator)
             .Include(q => q.Products).ThenInclude(p => p.Product)
-            .Include(q => q.Products).ThenInclude(p => p.Incentives).ThenInclude(i => i.IncentiveScheme)
             .Include(q => q.DuctedUnits).ThenInclude(d => d.Outlets)
             .Include(q => q.ServiceItems).ThenInclude(s => s.ServiceItem)
             .Include(q => q.Extras).ThenInclude(e => e.ExtraType)
@@ -211,45 +215,12 @@ public class QuoteService(
             _ = await context.Products.FindAsync([p.ProductId], cancellationToken)
                 ?? throw new NotFoundException(nameof(Product), p.ProductId);
 
-            var line = new QuoteProduct
+            quote.Products.Add(new QuoteProduct
             {
                 ProductId = p.ProductId,
                 Role = p.Role,
                 Quantity = p.Quantity,
-            };
-            foreach (var input in (p.Incentives ?? []).DistinctBy(i => i.IncentiveSchemeId))
-            {
-                var scheme = schemes[input.IncentiveSchemeId];
-                if (scheme.Kind != IncentiveKinds.LineAmount)
-                {
-                    throw new BusinessRuleException($"'{scheme.Label}' applies to the whole quote, not to a product line.");
-                }
-
-                var (defaultMode, defaultValue) = QuotePricingService.DefaultLineAmount(scheme);
-                var mode = input.Mode ?? defaultMode;
-                if (!LineAmountModes.All.Contains(mode))
-                {
-                    throw new BusinessRuleException(
-                        $"'{mode}' is not a way to price '{scheme.Label}'. Use {string.Join(" or ", LineAmountModes.All)}.");
-                }
-                // A mode switched on the line without a value takes the scheme's default for that mode.
-                var value = input.Value
-                    ?? (mode == defaultMode ? defaultValue : mode == LineAmountModes.Fixed ? scheme.DefaultAmount ?? 0m : scheme.Percent ?? 0m);
-                if (value < 0)
-                {
-                    throw new BusinessRuleException($"The value for '{scheme.Label}' cannot be negative.");
-                }
-
-                line.Incentives.Add(new QuoteProductIncentive
-                {
-                    IncentiveSchemeId = scheme.Id,
-                    IncentiveScheme = scheme,
-                    Mode = mode,
-                    Value = value,
-                });
-            }
-
-            quote.Products.Add(line);
+            });
         }
 
         foreach (var d in request.DuctedUnits)
@@ -309,21 +280,17 @@ public class QuoteService(
         foreach (var input in (request.Incentives ?? []).DistinctBy(i => i.IncentiveSchemeId))
         {
             var scheme = schemes[input.IncentiveSchemeId];
-            if (scheme.Kind == IncentiveKinds.LineAmount)
-            {
-                throw new BusinessRuleException($"'{scheme.Label}' applies to a product line, not to the whole quote.");
-            }
-            if (input.Amount is < 0)
-            {
-                throw new BusinessRuleException($"The amount for '{scheme.Label}' cannot be negative.");
-            }
+            (string? mode, decimal? value) = scheme.Kind == IncentiveKinds.QuoteAmount
+                ? ResolveAmountInput(scheme, input)
+                : ((string?)null, (decimal?)null);
 
             quote.Incentives.Add(new QuoteIncentive
             {
                 IncentiveSchemeId = scheme.Id,
                 IncentiveScheme = scheme,
-                // QuoteAmount: entered or default. Computed kinds are filled in by the pricing engine.
-                Amount = scheme.Kind == IncentiveKinds.QuoteAmount ? input.Amount ?? scheme.DefaultAmount : null,
+                Mode = mode,
+                Value = value,
+                // Amounts are filled in by the pricing engine.
                 Confirmed = previousIncentives.TryGetValue(scheme.Id, out var previous) && previous.Confirmed,
             });
         }
@@ -332,6 +299,30 @@ public class QuoteService(
         {
             throw new BusinessRuleException("A quote can carry only one invoice-discount scheme.");
         }
+    }
+
+    /// <summary>
+    /// The mode and value of a quote amount: as sent, else the scheme's default. A mode sent without a
+    /// value takes the scheme's default for that mode.
+    /// </summary>
+    private static (string Mode, decimal Value) ResolveAmountInput(IncentiveScheme scheme, QuoteIncentiveInput input)
+    {
+        var (defaultMode, defaultValue) = QuotePricingService.DefaultQuoteAmount(scheme);
+        var mode = input.Mode ?? defaultMode;
+        if (!AmountModes.All.Contains(mode))
+        {
+            throw new BusinessRuleException(
+                $"'{mode}' is not a way to price '{scheme.Label}'. Use {string.Join(" or ", AmountModes.All)}.");
+        }
+
+        var value = input.Value
+                    ?? (mode == defaultMode ? defaultValue : mode == AmountModes.Fixed ? scheme.DefaultAmount ?? 0m : scheme.Percent ?? 0m);
+        if (value < 0)
+        {
+            throw new BusinessRuleException($"The value for '{scheme.Label}' cannot be negative.");
+        }
+
+        return (mode, value);
     }
 
     /// <summary>
@@ -344,7 +335,6 @@ public class QuoteService(
         CancellationToken cancellationToken)
     {
         var ids = (request.Incentives ?? []).Select(i => i.IncentiveSchemeId)
-            .Concat(request.Products.SelectMany(p => (p.Incentives ?? []).Select(i => i.IncentiveSchemeId)))
             .Distinct()
             .ToList();
         var schemes = await context.IncentiveSchemes

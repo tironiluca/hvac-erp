@@ -3,7 +3,7 @@ import {
   applyDiscountLadder,
   baseSystemCode,
   blendVat,
-  defaultLineAmount,
+  defaultQuoteAmount,
   DUCTED_ACCESSORY_ITEMS,
   EstimateCatalog,
   EstimateFormValue,
@@ -60,6 +60,7 @@ describe('estimateQuotePrice', () => {
       machinesPrice: 1300,
       installationPrice: 400,
       finalPrice: 1700,
+      incentiveAmounts: {},
       invoiceDiscount: undefined,
       warning: undefined,
     });
@@ -191,8 +192,8 @@ describe('pricing helpers', () => {
 
 // Mirrors the backend QuotePricingServiceTests incentive cases.
 describe('incentive schemes', () => {
-  const base = { description: null, addToPrice: false, includeInInvoiceDiscountBasis: false, requiresVat: false, requiresConfirmation: false, sortOrder: 0 };
-  const warranty: IncentiveScheme = { ...base, id: 40, code: 'WARRANTY', label: 'Warranty', kind: 'LineAmount', percent: 8, addToPrice: true };
+  const base = { description: null, addToPrice: false, chargeBeforeVat: false, includeInInvoiceDiscountBasis: false, requiresVat: false, requiresConfirmation: false, sortOrder: 0 };
+  const warranty: IncentiveScheme = { ...base, id: 40, code: 'WARRANTY', label: 'Warranty', kind: 'QuoteAmount', percent: 8, defaultAmount: 100, addToPrice: true, chargeBeforeVat: true };
   const deduction: IncentiveScheme = { ...base, id: 10, code: 'DEDUCTION', label: 'Deduction', kind: 'QuoteAmount', includeInInvoiceDiscountBasis: true };
   const fee: IncentiveScheme = { ...base, id: 20, code: 'FEE', label: 'Fee', kind: 'QuoteAmount', defaultAmount: 80, addToPrice: true };
   const discount: IncentiveScheme = {
@@ -200,32 +201,29 @@ describe('incentive schemes', () => {
     threshold: 2000, rateBelowThreshold: 1.3, rateAboveThreshold: 1.2, roundingStep: 50, requiresVat: true, requiresConfirmation: true,
   };
   const schemes = catalog({ incentiveSchemes: [warranty, deduction, fee, discount] });
-  const pick = (id: number, amount: number | null = null) => ({ incentiveSchemeId: id, selected: true, amount });
+  const pick = (id: number, value: number | null = null, mode: 'Fixed' | 'Percent' | null = null) => ({ incentiveSchemeId: id, selected: true, mode, value });
 
-  it('adds a percentage line amount per unit on the machines side', () => {
+  it('takes a percentage warranty on the equipment list total, once per quote, before VAT', () => {
+    const result = estimateQuotePrice(form({ internalUnits: [{ productId: internal.id, quantity: 2 }], incentives: [pick(warranty.id)] }), schemes);
+
+    // Equipment list 1000 + 2 × 300 = 1600 → default 8% = 128 on the machines side; base install 400.
+    expect(result.incentiveAmounts).toEqual({ [warranty.id]: 128 });
+    expect(result.machinesPrice).toBe(1728);
+    expect(result.finalPrice).toBe(2128);
+  });
+
+  it('charges a fixed warranty once for the whole quote, whatever the quantity', () => {
     const result = estimateQuotePrice(
-      form({ internalUnits: [{ productId: internal.id, quantity: 2, incentives: [{ incentiveSchemeId: warranty.id, mode: 'Percent', value: 8 }] }] }),
+      form({ internalUnits: [{ productId: internal.id, quantity: 2 }], incentives: [pick(warranty.id, 100, 'Fixed')] }),
       schemes,
     );
 
-    // 1000 + 2 × 300 + warranty 8% × 300 × 2 = 48; base install for one line is 400.
-    expect(result.machinesPrice).toBe(1648);
-    expect(result.finalPrice).toBe(2048);
+    expect(result.machinesPrice).toBe(1600 + 100);
   });
 
-  it('adds a fixed line amount per unit when the line is set to € per unit', () => {
-    const result = estimateQuotePrice(
-      form({ internalUnits: [{ productId: internal.id, quantity: 2, incentives: [{ incentiveSchemeId: warranty.id, mode: 'Fixed', value: 100 }] }] }),
-      schemes,
-    );
-
-    // 1000 + 600 + €100 × 2 units.
-    expect(result.machinesPrice).toBe(1800);
-  });
-
-  it('starts a newly ticked line from the scheme default: its % when it has one, else its € amount', () => {
-    expect(defaultLineAmount(warranty)).toEqual({ mode: 'Percent', value: 8 });
-    expect(defaultLineAmount({ ...warranty, percent: null, defaultAmount: 100 })).toEqual({ mode: 'Fixed', value: 100 });
+  it('starts a newly ticked scheme from its default: the % when it has one, else the € amount', () => {
+    expect(defaultQuoteAmount(warranty)).toEqual({ mode: 'Percent', value: 8 });
+    expect(defaultQuoteAmount(fee)).toEqual({ mode: 'Fixed', value: 80 });
   });
 
   it('charges a quote amount after VAT, defaulting to the scheme amount', () => {
@@ -237,7 +235,7 @@ describe('incentive schemes', () => {
 
   it('grosses the invoice discount from the basis, adding back the manual discount and flagged amounts', () => {
     const result = estimateQuotePrice(
-      form({ vat: 'Reduced10', internalUnits: [], manualDiscount: -200, incentives: [pick(discount.id), pick(deduction.id, 100)] }),
+      form({ vat: 'Reduced10', internalUnits: [], manualDiscount: -200, incentives: [pick(discount.id), pick(deduction.id, 100, 'Fixed')] }),
       catalog({ products: [product(1, 2000)], incentiveSchemes: [deduction, discount] }),
     );
 

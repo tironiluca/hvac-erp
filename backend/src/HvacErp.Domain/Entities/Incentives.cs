@@ -21,25 +21,27 @@ public class IncentiveScheme
     public string Kind { get; set; } = IncentiveKinds.QuoteAmount;
 
     /// <summary>
-    /// <see cref="IncentiveKinds.QuoteAmount"/>: amount proposed for a new quote (staff can change it
-    /// per quote). <see cref="IncentiveKinds.LineAmount"/>: the fixed amount per unit proposed when
-    /// staff pick <see cref="LineAmountModes.Fixed"/> on a line.
+    /// <see cref="IncentiveKinds.QuoteAmount"/>: the € amount proposed when staff pick
+    /// <see cref="AmountModes.Fixed"/> on a quote.
     /// </summary>
     public decimal? DefaultAmount { get; set; }
 
     /// <summary>
-    /// <see cref="IncentiveKinds.LineAmount"/>: the percentage of the list unit price proposed when
-    /// staff pick <see cref="LineAmountModes.Percent"/> on a line; when set, a newly ticked line starts
-    /// in that mode. <see cref="IncentiveKinds.InvoiceDiscount"/>: the share of the grossed-up total
-    /// the customer pays.
+    /// <see cref="IncentiveKinds.QuoteAmount"/>: the percentage of the quote's equipment list total
+    /// proposed when staff pick <see cref="AmountModes.Percent"/>; when set, a newly ticked scheme
+    /// starts in that mode. <see cref="IncentiveKinds.InvoiceDiscount"/>: the share of the grossed-up
+    /// total the customer pays.
     /// </summary>
     public decimal? Percent { get; set; }
 
-    /// <summary>
-    /// Whether the amount is charged. A quote amount is added to the final price after VAT; a line
-    /// amount is added to the machines side, before the VAT blend. False: the amount is only shown.
-    /// </summary>
+    /// <summary>Whether the amount is charged. False: the amount is only shown on the quote.</summary>
     public bool AddToPrice { get; set; }
+
+    /// <summary>
+    /// A charged quote amount (<see cref="AddToPrice"/>) goes on the machines side, before the VAT
+    /// blend (e.g. an extended warranty, which is equipment cover). False: it is added after VAT.
+    /// </summary>
+    public bool ChargeBeforeVat { get; set; }
 
     /// <summary>A quote amount that is added to the invoice-discount basis (e.g. the deduction paperwork fee).</summary>
     public bool IncludeInInvoiceDiscountBasis { get; set; }
@@ -65,7 +67,7 @@ public class IncentiveScheme
     /// <summary>Printed in the quote PDF's pricing summary; for an invoice discount, the block title.</summary>
     public string? PdfLabel { get; set; }
 
-    /// <summary>Printed inside the invoice-discount block when the quote (or one of its lines) carries this scheme.</summary>
+    /// <summary>Printed inside the invoice-discount block when the quote carries this scheme.</summary>
     public string? PdfInvoiceDiscountNote { get; set; }
 
     public int SortOrder { get; set; }
@@ -75,11 +77,11 @@ public class IncentiveScheme
 /// <summary>The built-in calculations an <see cref="IncentiveScheme"/> can use.</summary>
 public static class IncentiveKinds
 {
-    /// <summary>One amount per quote (entered or defaulted), shown and optionally charged.</summary>
+    /// <summary>
+    /// One amount per quote, set as staff choose: a fixed € amount or a percentage of the quote's
+    /// equipment list total (<see cref="AmountModes"/>). Shown, and optionally charged.
+    /// </summary>
     public const string QuoteAmount = "QuoteAmount";
-
-    /// <summary>One amount per product line: a fixed amount or a percentage of the list price, per unit.</summary>
-    public const string LineAmount = "LineAmount";
 
     /// <summary>
     /// The quote total grossed up by a threshold-dependent rate and rounded up to the next step; the
@@ -88,10 +90,23 @@ public static class IncentiveKinds
     public const string InvoiceDiscount = "InvoiceDiscount";
 
     /// <summary>All kinds, for validation.</summary>
-    public static readonly IReadOnlyList<string> All = [QuoteAmount, LineAmount, InvoiceDiscount];
+    public static readonly IReadOnlyList<string> All = [QuoteAmount, InvoiceDiscount];
 }
 
-/// <summary>A quote-level <see cref="IncentiveScheme"/> on a quote.</summary>
+/// <summary>How a <see cref="IncentiveKinds.QuoteAmount"/> is set on a quote.</summary>
+public static class AmountModes
+{
+    /// <summary><see cref="QuoteIncentive.Value"/> € for the whole quote.</summary>
+    public const string Fixed = "Fixed";
+
+    /// <summary><see cref="QuoteIncentive.Value"/> % of the quote's equipment list total (list unit price × quantity, all units).</summary>
+    public const string Percent = "Percent";
+
+    /// <summary>All modes, for validation.</summary>
+    public static readonly IReadOnlyList<string> All = [Fixed, Percent];
+}
+
+/// <summary>An <see cref="IncentiveScheme"/> on a quote.</summary>
 public class QuoteIncentive
 {
     public int Id { get; set; }
@@ -102,51 +117,18 @@ public class QuoteIncentive
     public int IncentiveSchemeId { get; set; }
     public IncentiveScheme IncentiveScheme { get; set; } = null!;
 
+    /// <summary><see cref="IncentiveKinds.QuoteAmount"/>: one of <see cref="AmountModes"/>; null for computed kinds.</summary>
+    public string? Mode { get; set; }
+
+    /// <summary><see cref="IncentiveKinds.QuoteAmount"/>: the € amount or the percentage, per <see cref="Mode"/>.</summary>
+    public decimal? Value { get; set; }
+
     /// <summary>
-    /// <see cref="IncentiveKinds.QuoteAmount"/>: the amount (entered, else the scheme default).
-    /// <see cref="IncentiveKinds.InvoiceDiscount"/>: the grossed-up total computed by the pricing
-    /// engine; null when the scheme needs VAT and the quote is exempt.
+    /// The resulting amount, computed by the pricing engine. <see cref="IncentiveKinds.InvoiceDiscount"/>:
+    /// the grossed-up total; null when the scheme needs VAT and the quote is exempt.
     /// </summary>
     public decimal? Amount { get; set; }
 
     /// <summary>Customer acceptance, for schemes with <see cref="IncentiveScheme.RequiresConfirmation"/>.</summary>
     public bool Confirmed { get; set; }
-}
-
-/// <summary>How a <see cref="QuoteProductIncentive"/>'s amount is set on its line.</summary>
-public static class LineAmountModes
-{
-    /// <summary><see cref="QuoteProductIncentive.Value"/> % of the list unit price, per unit.</summary>
-    public const string Percent = "Percent";
-
-    /// <summary><see cref="QuoteProductIncentive.Value"/> € per unit.</summary>
-    public const string Fixed = "Fixed";
-
-    /// <summary>All modes, for validation.</summary>
-    public static readonly IReadOnlyList<string> All = [Percent, Fixed];
-}
-
-/// <summary>
-/// A line-level <see cref="IncentiveScheme"/> (<see cref="IncentiveKinds.LineAmount"/>, e.g. an
-/// extended warranty) on a quote line. Staff choose per line between a percentage of the list price
-/// and a fixed amount per unit; the scheme only supplies the proposed default.
-/// </summary>
-public class QuoteProductIncentive
-{
-    public int Id { get; set; }
-
-    public int QuoteProductId { get; set; }
-    public QuoteProduct QuoteProduct { get; set; } = null!;
-
-    public int IncentiveSchemeId { get; set; }
-    public IncentiveScheme IncentiveScheme { get; set; } = null!;
-
-    /// <summary>One of <see cref="LineAmountModes"/>.</summary>
-    public string Mode { get; set; } = LineAmountModes.Percent;
-
-    /// <summary>The percentage (<see cref="LineAmountModes.Percent"/>) or the € per unit (<see cref="LineAmountModes.Fixed"/>).</summary>
-    public decimal Value { get; set; }
-
-    /// <summary>The line's amount, computed by the pricing engine (all units of the line).</summary>
-    public decimal Amount { get; set; }
 }

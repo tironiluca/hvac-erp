@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using HvacErp.Application.Common;
+using HvacErp.Application.Erp;
 using HvacErp.Infrastructure.Auth;
+using HvacErp.Infrastructure.Erp;
 using HvacErp.Infrastructure.Health;
 using HvacErp.Infrastructure.Persistence;
 using HvacErp.Infrastructure.Services.Pdf;
@@ -42,6 +44,15 @@ public static class DependencyInjection
         services.AddSingleton<IQuoteDocumentGenerator, QuestPdfQuoteDocumentGenerator>();
         services.AddSingleton<IRepairDocumentGenerator, QuestPdfRepairDocumentGenerator>();
         services.AddSingleton<IInstallationDocumentGenerator, QuestPdfInstallationDocumentGenerator>();
+
+        // Main-ERP integration: connectors are picked by Erp:Provider; the worker drains the outbox.
+        services.Configure<ErpOptions>(configuration.GetSection(ErpOptions.Section));
+        services.Configure<MockErpOptions>(configuration.GetSection(MockErpOptions.Section));
+        services.AddHttpClient<HttpJsonErpConnector>();
+        services.AddTransient<IErpConnector>(sp => sp.GetRequiredService<HttpJsonErpConnector>());
+        services.AddScoped<IErpConnectorResolver, ErpConnectorResolver>();
+        services.AddHostedService<ErpExportWorker>();
+        services.AddScoped<MockErpService>();
 
         return services;
     }

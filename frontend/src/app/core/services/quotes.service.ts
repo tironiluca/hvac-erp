@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ErpExport,
   QuoteAttachment,
   QuoteDetail,
   QuoteListItem,
@@ -50,6 +51,16 @@ export class QuotesService {
   /** Confirms the quote, locking it (Sales/Admin only). */
   confirm(id: number): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/confirm`, {});
+  }
+
+  /** The quote's export to the main ERP; null when it has none (204). */
+  getErpExport(id: number): Observable<ErpExport | null> {
+    return this.http.get<ErpExport | null>(`${this.baseUrl}/${id}/erp-export`);
+  }
+
+  /** Sends a confirmed quote to the main ERP now (or retries a failed send). */
+  sendToErp(id: number): Observable<ErpExport> {
+    return this.http.post<ErpExport>(`${this.baseUrl}/${id}/erp-export`, {});
   }
 
   /** Flips the customer's acceptance of an incentive that requires it (e.g. an invoice discount). */

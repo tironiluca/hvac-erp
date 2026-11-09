@@ -19,7 +19,7 @@ namespace HvacErp.Api.Tests;
 /// Boots the real API pipeline (routing, policies, exception handler) with an in-memory database and
 /// a header-driven test authentication scheme in place of Supabase JWT validation.
 /// </summary>
-public sealed class ApiFactory : WebApplicationFactory<Program>
+public class ApiFactory : WebApplicationFactory<Program>
 {
     public const string RoleHeader = "X-Test-Role";
     private readonly string _databaseName = $"api-tests-{Guid.NewGuid():N}";
@@ -30,6 +30,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Supabase:Url", "https://test.supabase.co");
         builder.UseSetting("Supabase:ServiceRoleKey", "test-key");
         builder.UseSetting("ConnectionStrings:Postgres", "Host=unused");
+        foreach (var (key, value) in ExtraSettings)
+        {
+            builder.UseSetting(key, value);
+        }
 
         builder.ConfigureServices(services =>
         {
@@ -50,6 +54,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 .ConfigurePrimaryHttpMessageHandler(() => new StubHandler(() => StorageStatus));
         });
     }
+
+    /// <summary>Extra configuration for a derived factory (e.g. switching the mock ERP on).</summary>
+    protected virtual IEnumerable<(string Key, string Value)> ExtraSettings => [];
 
     /// <summary>Status the stubbed Supabase Storage bucket lookup returns.</summary>
     public HttpStatusCode StorageStatus { get; set; } = HttpStatusCode.OK;

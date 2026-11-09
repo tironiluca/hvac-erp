@@ -108,11 +108,11 @@ export interface Product {
 /** Stored `Product.category` values (backend `ProductCategories`). */
 export type ProductCategory = 'Outdoor' | 'Indoor';
 
-/** How a line-level incentive is priced on its line (backend `LineAmountModes`): % of the list unit price, or € per unit. */
-export type LineAmountMode = 'Percent' | 'Fixed';
+/** How a quote amount is set on a quote (backend `AmountModes`): fixed €, or % of the equipment list total. */
+export type AmountMode = 'Fixed' | 'Percent';
 
 /** The built-in calculations an incentive scheme can use (backend `IncentiveKinds`). */
-export type IncentiveKind = 'QuoteAmount' | 'LineAmount' | 'InvoiceDiscount';
+export type IncentiveKind = 'QuoteAmount' | 'InvoiceDiscount';
 
 /**
  * A tax incentive, fee, invoice discount or per-line option, with its calculation parameters
@@ -126,9 +126,11 @@ export interface IncentiveScheme {
   description?: string | null;
   kind: IncentiveKind;
   defaultAmount?: number | null;
-  /** LineAmount: the % of the list unit price proposed for a newly ticked line. InvoiceDiscount: the share the customer pays. */
+  /** QuoteAmount: the % of the equipment list total proposed for a newly ticked scheme. InvoiceDiscount: the share the customer pays. */
   percent?: number | null;
   addToPrice: boolean;
+  /** A charged quote amount goes on the machines side, before VAT (else after VAT). */
+  chargeBeforeVat: boolean;
   includeInInvoiceDiscountBasis: boolean;
   requiresVat: boolean;
   requiresConfirmation: boolean;

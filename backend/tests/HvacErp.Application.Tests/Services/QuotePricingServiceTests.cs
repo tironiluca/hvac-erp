@@ -52,7 +52,11 @@ public class QuotePricingServiceTests
 
     private QuoteIncentive AddIncentive(Quote quote, string code, decimal? amount = null)
     {
-        var incentive = new QuoteIncentive { IncentiveSchemeId = _schemes[code].Id, Amount = amount };
+        // A QuoteAmount's amount comes from its mode and value; a computed kind ignores them.
+        var incentive = new QuoteIncentive
+        {
+            IncentiveSchemeId = _schemes[code].Id, Mode = AmountModes.Fixed, Value = amount, Amount = amount,
+        };
         quote.Incentives.Add(incentive);
         return incentive;
     }
@@ -195,39 +199,42 @@ public class QuotePricingServiceTests
     }
 
     [Fact]
-    public async Task Quantity_multiplies_net_price_and_a_percentage_line_scheme_is_added_per_unit()
+    public async Task A_percentage_warranty_is_taken_on_the_equipment_list_total_and_charged_before_vat()
     {
-        var quote = QuoteWith(VatCodes.Exempt,
+        var quote = QuoteWith(VatCodes.Reduced10,
             (External(1000m), ProductRole.ExternalUnit, 1),
             (Internal(300m), ProductRole.InternalUnit, 2));
-        var internalLine = quote.Products.Single(p => p.Role == ProductRole.InternalUnit);
-        var warranty = new QuoteProductIncentive
+        var warranty = new QuoteIncentive
         {
-            IncentiveSchemeId = _schemes[IncentiveSchemeDefaults.AllInclusiveWarranty].Id, Mode = LineAmountModes.Percent, Value = 8m,
+            IncentiveSchemeId = _schemes[IncentiveSchemeDefaults.AllInclusiveWarranty].Id, Mode = AmountModes.Percent, Value = 8m,
         };
-        internalLine.Incentives.Add(warranty);
+        quote.Incentives.Add(warranty);
 
         await _sut.PriceAsync(quote);
 
-        // Warranty: 8% of the 300 list price, per unit → 24 × 2 = 48, on the machines side.
-        Assert.Equal(48m, warranty.Amount);
-        Assert.Equal(1000m + 600m + 48m, quote.MachinesPrice);
+        // Equipment list total 1000 + 2 × 300 = 1600 → 8% = 128, once for the quote, on the machines side.
+        Assert.Equal(128m, warranty.Amount);
+        Assert.Equal(1600m + 128m, quote.MachinesPrice);
+        // Machines and the base installation (one indoor line: the single-split 400) both go through
+        // the 10% VAT blend.
+        Assert.Equal((1728m + 400m) * 1.1m, quote.FinalPrice);
     }
 
     [Fact]
-    public async Task A_fixed_line_scheme_that_is_not_charged_is_only_recorded()
+    public async Task A_fixed_quote_amount_that_is_not_charged_is_only_recorded()
     {
         var cover = AddScheme(new IncentiveScheme
         {
-            Code = "FREE_CHECKUP", Label = "Free check-up", Kind = IncentiveKinds.LineAmount, DefaultAmount = 20m, AddToPrice = false,
+            Code = "FREE_CHECKUP", Label = "Free check-up", Kind = IncentiveKinds.QuoteAmount, DefaultAmount = 20m, AddToPrice = false,
+            ChargeBeforeVat = true,
         });
         var quote = QuoteWith(VatCodes.Exempt, (External(1000m), ProductRole.ExternalUnit, 3));
-        var line = new QuoteProductIncentive { IncentiveSchemeId = cover.Id, Mode = LineAmountModes.Fixed, Value = 20m };
-        quote.Products.Single().Incentives.Add(line);
+        var checkup = new QuoteIncentive { IncentiveSchemeId = cover.Id, Mode = AmountModes.Fixed, Value = 20m };
+        quote.Incentives.Add(checkup);
 
         await _sut.PriceAsync(quote);
 
-        Assert.Equal(60m, line.Amount);
+        Assert.Equal(20m, checkup.Amount); // once per quote, whatever the quantity
         Assert.Equal(3000m, quote.MachinesPrice);
     }
 
@@ -239,7 +246,7 @@ public class QuotePricingServiceTests
             Code = "SURVEY_FEE", Label = "Survey fee", Kind = IncentiveKinds.QuoteAmount, DefaultAmount = 80m, AddToPrice = true,
         });
         var quote = QuoteWith(VatCodes.Reduced10, (External(1000m, maxBtu: null), ProductRole.ExternalUnit, 1));
-        quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = fee.Id, Amount = 80m });
+        quote.Incentives.Add(new QuoteIncentive { IncentiveSchemeId = fee.Id, Mode = AmountModes.Fixed, Value = 80m });
         AddIncentive(quote, IncentiveSchemeDefaults.WeeeTakeBack, 45m);
 
         await _sut.PriceAsync(quote);
