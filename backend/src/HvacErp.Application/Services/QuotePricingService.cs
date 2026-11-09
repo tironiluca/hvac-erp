@@ -96,13 +96,23 @@ public class QuotePricingService(IAppDbContext context) : IQuotePricingService
     }
 
     /// <summary>
-    /// <see cref="IncentiveKinds.LineAmount"/>: a fixed amount per unit, or <see cref="IncentiveScheme.Percent"/>
-    /// of the list unit price per unit (legacy all-inclusive warranty, 8% of list).
+    /// <see cref="IncentiveKinds.LineAmount"/> on one line, per the mode chosen there:
+    /// <see cref="LineAmountModes.Percent"/> takes <paramref name="value"/> % of the list unit price,
+    /// <see cref="LineAmountModes.Fixed"/> charges <paramref name="value"/> €; both per unit.
     /// </summary>
-    public static decimal LineAmount(IncentiveScheme scheme, decimal listUnitPrice, int quantity) =>
+    public static decimal LineAmount(string mode, decimal value, decimal listUnitPrice, int quantity) =>
         Math.Round(
-            (scheme.DefaultAmount ?? listUnitPrice * (scheme.Percent ?? 0m) / 100m) * quantity,
+            (mode == LineAmountModes.Fixed ? value : listUnitPrice * value / 100m) * quantity,
             2, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// The mode and value a newly ticked line starts with: the scheme's percentage when it has one,
+    /// else its fixed amount per unit.
+    /// </summary>
+    public static (string Mode, decimal Value) DefaultLineAmount(IncentiveScheme scheme) =>
+        scheme.Percent is { } percent
+            ? (LineAmountModes.Percent, percent)
+            : (LineAmountModes.Fixed, scheme.DefaultAmount ?? 0m);
 
     /// <summary>Quote amounts charged on top of the VAT-blended total (<see cref="IncentiveScheme.AddToPrice"/>).</summary>
     private static decimal ChargedQuoteAmounts(Quote quote, IReadOnlyDictionary<int, IncentiveScheme> schemes) =>
@@ -225,7 +235,7 @@ public class QuotePricingService(IAppDbContext context) : IQuotePricingService
             foreach (var incentive in line.Incentives)
             {
                 var scheme = schemes[incentive.IncentiveSchemeId];
-                incentive.Amount = LineAmount(scheme, listPrice, line.Quantity);
+                incentive.Amount = LineAmount(incentive.Mode, incentive.Value, listPrice, line.Quantity);
                 if (scheme.AddToPrice)
                 {
                     total += incentive.Amount;

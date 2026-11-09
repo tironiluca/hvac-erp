@@ -274,3 +274,23 @@ mat-form-field {
     }
   }
 }
+
+// A line-level incentive (e.g. warranty): tick, then mode and value side by side; wraps on phones.
+.line-scheme {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+
+  mat-checkbox {
+    white-space: nowrap;
+  }
+
+  .line-scheme__mode {
+    flex: 0 0 170px;
+  }
+
+  .line-scheme__value {
+    flex: 0 0 110px;
+  }
+}

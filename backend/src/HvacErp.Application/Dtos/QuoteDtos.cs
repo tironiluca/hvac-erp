@@ -87,8 +87,11 @@ public record QuoteIncentiveDto(
     bool RequiresConfirmation,
     bool Confirmed);
 
-/// <summary>A line-level incentive (e.g. an extended warranty) with its computed amount.</summary>
-public record QuoteProductIncentiveDto(int IncentiveSchemeId, string Code, string Label, decimal Amount);
+/// <summary>
+/// A line-level incentive (e.g. an extended warranty): the mode and value chosen on the line
+/// (<c>Percent</c> of the list price or <c>Fixed</c> € per unit) and the computed line amount.
+/// </summary>
+public record QuoteProductIncentiveDto(int IncentiveSchemeId, string Code, string Label, string Mode, decimal Value, decimal Amount);
 
 /// <summary>A labour / consumable line on a quote.</summary>
 public record QuoteServiceItemDto(
@@ -135,7 +138,13 @@ public record DuctedUnitDto(
     List<DuctedUnitOutletDto> Outlets);
 
 /// <summary>Product a client is buying as part of a quote. Price fields are always computed server-side from the catalog — never trust client-supplied prices.</summary>
-public record QuoteProductInput(int ProductId, ProductRole Role, int Quantity, List<int>? IncentiveSchemeIds = null);
+public record QuoteProductInput(int ProductId, ProductRole Role, int Quantity, List<QuoteProductIncentiveInput>? Incentives = null);
+
+/// <summary>
+/// A line-level incentive sent when saving a quote: <c>Percent</c> (of the list unit price) or
+/// <c>Fixed</c> (€ per unit) with its value. Omitted mode / value take the scheme's default.
+/// </summary>
+public record QuoteProductIncentiveInput(int IncentiveSchemeId, string? Mode = null, decimal? Value = null);
 
 /// <summary>
 /// A quote-level incentive sent when saving a quote. <see cref="Amount"/> applies to

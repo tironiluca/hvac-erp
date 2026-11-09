@@ -1375,9 +1375,19 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("incentive_scheme_id");
 
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("mode");
+
                     b.Property<int>("QuoteProductId")
                         .HasColumnType("integer")
                         .HasColumnName("quote_product_id");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("value");
 
                     b.HasKey("Id")
                         .HasName("pk_quote_product_incentives");
@@ -1389,7 +1399,12 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_quote_product_incentives_quote_product_id_incentive_scheme_");
 
-                    b.ToTable("quote_product_incentives", (string)null);
+                    b.ToTable("quote_product_incentives", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_quote_product_incentives_mode", "mode IN ('Percent', 'Fixed')");
+
+                            t.HasCheckConstraint("ck_quote_product_incentives_value_non_negative", "value >= 0");
+                        });
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.QuoteServiceItem", b =>

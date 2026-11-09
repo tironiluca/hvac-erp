@@ -3,6 +3,7 @@ import {
   applyDiscountLadder,
   baseSystemCode,
   blendVat,
+  defaultLineAmount,
   DUCTED_ACCESSORY_ITEMS,
   EstimateCatalog,
   EstimateFormValue,
@@ -201,12 +202,30 @@ describe('incentive schemes', () => {
   const schemes = catalog({ incentiveSchemes: [warranty, deduction, fee, discount] });
   const pick = (id: number, amount: number | null = null) => ({ incentiveSchemeId: id, selected: true, amount });
 
-  it('adds a percentage line scheme per unit on the machines side', () => {
-    const result = estimateQuotePrice(form({ internalUnits: [{ productId: internal.id, quantity: 2, incentiveSchemeIds: [warranty.id] }] }), schemes);
+  it('adds a percentage line amount per unit on the machines side', () => {
+    const result = estimateQuotePrice(
+      form({ internalUnits: [{ productId: internal.id, quantity: 2, incentives: [{ incentiveSchemeId: warranty.id, mode: 'Percent', value: 8 }] }] }),
+      schemes,
+    );
 
     // 1000 + 2 × 300 + warranty 8% × 300 × 2 = 48; base install for one line is 400.
     expect(result.machinesPrice).toBe(1648);
     expect(result.finalPrice).toBe(2048);
+  });
+
+  it('adds a fixed line amount per unit when the line is set to € per unit', () => {
+    const result = estimateQuotePrice(
+      form({ internalUnits: [{ productId: internal.id, quantity: 2, incentives: [{ incentiveSchemeId: warranty.id, mode: 'Fixed', value: 100 }] }] }),
+      schemes,
+    );
+
+    // 1000 + 600 + €100 × 2 units.
+    expect(result.machinesPrice).toBe(1800);
+  });
+
+  it('starts a newly ticked line from the scheme default: its % when it has one, else its € amount', () => {
+    expect(defaultLineAmount(warranty)).toEqual({ mode: 'Percent', value: 8 });
+    expect(defaultLineAmount({ ...warranty, percent: null, defaultAmount: 100 })).toEqual({ mode: 'Fixed', value: 100 });
   });
 
   it('charges a quote amount after VAT, defaulting to the scheme amount', () => {

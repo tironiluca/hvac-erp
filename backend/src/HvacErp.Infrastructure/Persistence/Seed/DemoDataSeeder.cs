@@ -611,7 +611,10 @@ public static class DemoDataSeeder
                     ProductId = p.ProductId, Role = p.Role, Quantity = p.Quantity,
                     Price = p.Price, DiscountedPrice = p.DiscountedPrice,
                     Incentives = p.Incentives
-                        .Select(i => new QuoteProductIncentive { IncentiveSchemeId = i.IncentiveSchemeId, Amount = i.Amount })
+                        .Select(i => new QuoteProductIncentive
+                        {
+                            IncentiveSchemeId = i.IncentiveSchemeId, Mode = i.Mode, Value = i.Value, Amount = i.Amount,
+                        })
                         .ToList(),
                 });
             }
@@ -645,10 +648,14 @@ public static class DemoDataSeeder
         if (role == ProductRole.InternalUnit && Chance(0.2)
             && Schemes.TryGetValue(IncentiveSchemeDefaults.AllInclusiveWarranty, out var warranty))
         {
+            // Mostly the scheme's percentage; sometimes a flat €100 per unit, as staff may choose.
+            var (mode, value) = Chance(0.3) ? (LineAmountModes.Fixed, 100m) : QuotePricingService.DefaultLineAmount(warranty);
             line.Incentives.Add(new QuoteProductIncentive
             {
                 IncentiveSchemeId = warranty.Id,
-                Amount = QuotePricingService.LineAmount(warranty, product.Price, qty),
+                Mode = mode,
+                Value = value,
+                Amount = QuotePricingService.LineAmount(mode, value, product.Price, qty),
             });
         }
         return line;

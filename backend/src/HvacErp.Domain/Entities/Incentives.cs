@@ -22,14 +22,16 @@ public class IncentiveScheme
 
     /// <summary>
     /// <see cref="IncentiveKinds.QuoteAmount"/>: amount proposed for a new quote (staff can change it
-    /// per quote). <see cref="IncentiveKinds.LineAmount"/>: fixed amount per unit; when null the
-    /// amount is <see cref="Percent"/> of the list price.
+    /// per quote). <see cref="IncentiveKinds.LineAmount"/>: the fixed amount per unit proposed when
+    /// staff pick <see cref="LineAmountModes.Fixed"/> on a line.
     /// </summary>
     public decimal? DefaultAmount { get; set; }
 
     /// <summary>
-    /// <see cref="IncentiveKinds.LineAmount"/>: percentage of the line's list unit price, per unit.
-    /// <see cref="IncentiveKinds.InvoiceDiscount"/>: the share of the grossed-up total the customer pays.
+    /// <see cref="IncentiveKinds.LineAmount"/>: the percentage of the list unit price proposed when
+    /// staff pick <see cref="LineAmountModes.Percent"/> on a line; when set, a newly ticked line starts
+    /// in that mode. <see cref="IncentiveKinds.InvoiceDiscount"/>: the share of the grossed-up total
+    /// the customer pays.
     /// </summary>
     public decimal? Percent { get; set; }
 
@@ -111,7 +113,24 @@ public class QuoteIncentive
     public bool Confirmed { get; set; }
 }
 
-/// <summary>A line-level <see cref="IncentiveScheme"/> (<see cref="IncentiveKinds.LineAmount"/>) on a quote line.</summary>
+/// <summary>How a <see cref="QuoteProductIncentive"/>'s amount is set on its line.</summary>
+public static class LineAmountModes
+{
+    /// <summary><see cref="QuoteProductIncentive.Value"/> % of the list unit price, per unit.</summary>
+    public const string Percent = "Percent";
+
+    /// <summary><see cref="QuoteProductIncentive.Value"/> € per unit.</summary>
+    public const string Fixed = "Fixed";
+
+    /// <summary>All modes, for validation.</summary>
+    public static readonly IReadOnlyList<string> All = [Percent, Fixed];
+}
+
+/// <summary>
+/// A line-level <see cref="IncentiveScheme"/> (<see cref="IncentiveKinds.LineAmount"/>, e.g. an
+/// extended warranty) on a quote line. Staff choose per line between a percentage of the list price
+/// and a fixed amount per unit; the scheme only supplies the proposed default.
+/// </summary>
 public class QuoteProductIncentive
 {
     public int Id { get; set; }
@@ -121,6 +140,12 @@ public class QuoteProductIncentive
 
     public int IncentiveSchemeId { get; set; }
     public IncentiveScheme IncentiveScheme { get; set; } = null!;
+
+    /// <summary>One of <see cref="LineAmountModes"/>.</summary>
+    public string Mode { get; set; } = LineAmountModes.Percent;
+
+    /// <summary>The percentage (<see cref="LineAmountModes.Percent"/>) or the € per unit (<see cref="LineAmountModes.Fixed"/>).</summary>
+    public decimal Value { get; set; }
 
     /// <summary>The line's amount, computed by the pricing engine (all units of the line).</summary>
     public decimal Amount { get; set; }

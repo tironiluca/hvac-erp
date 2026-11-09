@@ -32,9 +32,9 @@ public class QuoteServiceWorkflowTests
 
     private int SchemeId(string code) => _schemes[code].Id;
 
-    private UpsertQuoteRequest Request(params QuoteIncentiveInput[] incentives) => Request([], incentives);
+    private UpsertQuoteRequest Request(params QuoteIncentiveInput[] incentives) => LineRequest([], incentives);
 
-    private UpsertQuoteRequest Request(List<int> lineSchemeIds, params QuoteIncentiveInput[] incentives) => new(
+    private UpsertQuoteRequest LineRequest(List<QuoteProductIncentiveInput> lineIncentives, params QuoteIncentiveInput[] incentives) => new(
         ClientId: _client.Id,
         OperatorId: null,
         ParentQuoteId: null,
@@ -45,7 +45,7 @@ public class QuoteServiceWorkflowTests
         InstallationAddress: "  Via Roma 1  ",
         InstallationCity: " ",
         InstallationPositionNotes: null,
-        Products: [new QuoteProductInput(_external.Id, ProductRole.ExternalUnit, 1, lineSchemeIds)],
+        Products: [new QuoteProductInput(_external.Id, ProductRole.ExternalUnit, 1, lineIncentives)],
         DuctedUnits: [],
         ServiceItems: [],
         Extras: [],
@@ -152,12 +152,44 @@ public class QuoteServiceWorkflowTests
         var warrantyId = SchemeId(IncentiveSchemeDefaults.AllInclusiveWarranty);
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(Request(new QuoteIncentiveInput(warrantyId))));
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(Request([Discount.IncentiveSchemeId])));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(LineRequest([new(Discount.IncentiveSchemeId)])));
 
-        var created = await _sut.CreateAsync(Request([warrantyId]));
+        var created = await _sut.CreateAsync(LineRequest([new(warrantyId)]));
         var line = created.Products.Single().Incentives.Single();
-        Assert.Equal(80m, line.Amount); // 8% of the 1000 list price
+        Assert.Equal((LineAmountModes.Percent, 8m, 80m), (line.Mode, line.Value, line.Amount)); // scheme default: 8% of the 1000 list price
         Assert.Equal(1080m, created.FinalPrice); // warranty on the machines side; Exempt VAT, no indoor unit
+    }
+
+    [Fact]
+    public async Task Staff_choose_a_percentage_or_a_fixed_amount_per_unit_on_each_line()
+    {
+        var warrantyId = SchemeId(IncentiveSchemeDefaults.AllInclusiveWarranty);
+        var request = LineRequest([new(warrantyId, LineAmountModes.Fixed, 100m)]) with
+        {
+            Products = [new QuoteProductInput(_external.Id, ProductRole.ExternalUnit, 2, [new(warrantyId, LineAmountModes.Fixed, 100m)])],
+        };
+
+        var fixedPerUnit = await _sut.CreateAsync(request);
+        var percent = await _sut.CreateAsync(LineRequest([new(warrantyId, LineAmountModes.Percent, 12.5m)]));
+
+        Assert.Equal(200m, fixedPerUnit.Products.Single().Incentives.Single().Amount); // €100 × 2 units
+        Assert.Equal(2000m + 200m, fixedPerUnit.FinalPrice);
+        Assert.Equal(125m, percent.Products.Single().Incentives.Single().Amount); // 12.5% of 1000
+    }
+
+    [Fact]
+    public async Task A_line_mode_without_a_value_takes_the_scheme_default_for_that_mode_and_bad_input_is_rejected()
+    {
+        var warranty = _schemes[IncentiveSchemeDefaults.AllInclusiveWarranty];
+        warranty.DefaultAmount = 150m;
+        await _db.SaveChangesAsync();
+
+        var created = await _sut.CreateAsync(LineRequest([new(warranty.Id, LineAmountModes.Fixed)]));
+
+        Assert.Equal((LineAmountModes.Fixed, 150m, 150m),
+            (created.Products.Single().Incentives.Single().Mode, created.Products.Single().Incentives.Single().Value, created.Products.Single().Incentives.Single().Amount));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(LineRequest([new(warranty.Id, "PerQuote", 10m)])));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(LineRequest([new(warranty.Id, LineAmountModes.Fixed, -1m)])));
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-import { DiscountTier, ExtraType, IncentiveScheme, Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
+import { DiscountTier, ExtraType, IncentiveScheme, LineAmountMode, Product, ServiceItem, VatOptionLookup } from '../../core/models/lookup.model';
 import { DuctSystemType } from '../../core/models/quote.model';
 
 /**
@@ -19,8 +19,14 @@ export interface PriceEstimate {
 export interface EstimateUnitLine {
   productId: number | null;
   quantity: number;
-  /** `LineAmount` incentive schemes on the line. */
-  incentiveSchemeIds?: number[];
+  /** `LineAmount` incentive schemes on the line, each priced as chosen there. */
+  incentives?: EstimateLineIncentive[];
+}
+
+export interface EstimateLineIncentive {
+  incentiveSchemeId: number;
+  mode: LineAmountMode;
+  value: number;
 }
 
 export interface EstimateIncentiveLine {
@@ -123,9 +129,14 @@ export function unitPrice(product: Product, predisposed: boolean): number {
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
-/** `LineAmount` scheme (mirrors `QuotePricingService.LineAmount`): fixed per unit, else % of the list unit price per unit. */
-export function lineSchemeAmount(scheme: IncentiveScheme, listUnit: number, quantity: number): number {
-  return round2((scheme.defaultAmount ?? (listUnit * (scheme.percent ?? 0)) / 100) * quantity);
+/** Line incentive amount (mirrors `QuotePricingService.LineAmount`): `value` % of the list unit price, or `value` €; per unit. */
+export function lineAmount(mode: LineAmountMode, value: number, listUnit: number, quantity: number): number {
+  return round2((mode === 'Fixed' ? value : (listUnit * value) / 100) * quantity);
+}
+
+/** The mode and value a newly ticked line starts with (mirrors `QuotePricingService.DefaultLineAmount`). */
+export function defaultLineAmount(scheme: IncentiveScheme): { mode: LineAmountMode; value: number } {
+  return scheme.percent != null ? { mode: 'Percent', value: scheme.percent } : { mode: 'Fixed', value: scheme.defaultAmount ?? 0 };
 }
 
 /**
@@ -186,10 +197,10 @@ export function estimateQuotePrice(raw: EstimateFormValue, catalog: EstimateCata
     if (!product) continue;
     machinesPrice += unitPrice(product, raw.predisposed) * line.quantity;
     // Line schemes (e.g. a warranty) charged on the machines side, before the VAT blend.
-    for (const schemeId of line.incentiveSchemeIds ?? []) {
-      const scheme = schemeById.get(schemeId);
+    for (const incentive of line.incentives ?? []) {
+      const scheme = schemeById.get(incentive.incentiveSchemeId);
       if (scheme?.kind === 'LineAmount' && scheme.addToPrice) {
-        machinesPrice += lineSchemeAmount(scheme, listUnitPrice(product, raw.predisposed), line.quantity);
+        machinesPrice += lineAmount(incentive.mode, incentive.value ?? 0, listUnitPrice(product, raw.predisposed), line.quantity);
       }
     }
   }

@@ -108,6 +108,9 @@ export interface Product {
 /** Stored `Product.category` values (backend `ProductCategories`). */
 export type ProductCategory = 'Outdoor' | 'Indoor';
 
+/** How a line-level incentive is priced on its line (backend `LineAmountModes`): % of the list unit price, or € per unit. */
+export type LineAmountMode = 'Percent' | 'Fixed';
+
 /** The built-in calculations an incentive scheme can use (backend `IncentiveKinds`). */
 export type IncentiveKind = 'QuoteAmount' | 'LineAmount' | 'InvoiceDiscount';
 
@@ -123,7 +126,7 @@ export interface IncentiveScheme {
   description?: string | null;
   kind: IncentiveKind;
   defaultAmount?: number | null;
-  /** LineAmount: % of the list price per unit. InvoiceDiscount: the share the customer pays. */
+  /** LineAmount: the % of the list unit price proposed for a newly ticked line. InvoiceDiscount: the share the customer pays. */
   percent?: number | null;
   addToPrice: boolean;
   includeInInvoiceDiscountBasis: boolean;

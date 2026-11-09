@@ -296,6 +296,15 @@
     "predisposed": "Impianto predisposto",
     "incentives": "Incentivi e opzioni",
     "incentiveAmount": "Importo (€)",
+    "lineMode": {
+      "label": "Calcolo",
+      "Percent": "% sul listino",
+      "Fixed": "€ per unità"
+    },
+    "lineValue": {
+      "Percent": "%",
+      "Fixed": "€ per unità"
+    },
     "invoiceDiscountNeedsVat": "Lo sconto in fattura è disponibile solo per preventivi con IVA.",
     "invoiceDiscountGrossTotal": "{{label}}: totale fattura (IVA e installazione comprese)",
     "invoiceDiscountToPay": "Totale a pagare con lo sconto in fattura",

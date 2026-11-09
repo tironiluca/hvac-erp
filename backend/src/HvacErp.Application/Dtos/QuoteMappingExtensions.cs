@@ -61,7 +61,8 @@ public static class QuoteMappingExtensions
         p.Id, p.ProductId, p.Product.Brand, p.Product.Model, p.Role, p.Quantity,
         p.Price, p.DiscountedPrice,
         p.Incentives.OrderBy(i => i.IncentiveScheme.SortOrder)
-            .Select(i => new QuoteProductIncentiveDto(i.IncentiveSchemeId, i.IncentiveScheme.Code, i.IncentiveScheme.Label, i.Amount))
+            .Select(i => new QuoteProductIncentiveDto(
+                i.IncentiveSchemeId, i.IncentiveScheme.Code, i.IncentiveScheme.Label, i.Mode, i.Value, i.Amount))
             .ToList());
 
     /// <summary>Maps a quote incentive (with its scheme loaded) to its DTO.</summary>

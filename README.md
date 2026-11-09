@@ -34,7 +34,7 @@ Angular SPA (Vercel)  ──HTTPS──►  .NET API (Render)  ─────�
 | `kind` | Calculation | Parameters |
 |---|---|---|
 | `QuoteAmount` | One amount per quote, entered in the wizard (else `default_amount`). | `add_to_price` (charged after VAT, else shown only), `include_in_invoice_discount_basis` |
-| `LineAmount` | Per product line: `default_amount` per unit, else `percent` % of the list unit price per unit. | `add_to_price` (charged on the machines side, before VAT) |
+| `LineAmount` | Per product line, as the salesperson picks on the line: a % of the list unit price or a fixed € amount, both per unit. A newly ticked line starts from the scheme's `percent` when set, else its `default_amount`; the line stores the mode and value it was priced with. | `add_to_price` (charged on the machines side, before VAT) |
 | `InvoiceDiscount` | Basis = final price − manual discount + flagged quote amounts; × `rate_below_threshold` below `threshold`, else × `rate_above_threshold`; raised to the next `rounding_step` (a full step even on an exact multiple, as legacy did). The customer pays `percent` %. | `requires_vat`, `requires_confirmation` (accepted per quote via `POST /api/quotes/{id}/incentives/{schemeId}/confirmation`) |
 
 `pdf_label` is printed in the quote PDF's pricing summary (the block title, for an invoice discount) and `pdf_invoice_discount_note` inside the invoice-discount block. Check constraints require each kind's parameters. `quote_incentives` / `quote_product_incentives` keep the amounts each quote was priced with, and the wizard's live preview (`quote-price-estimate.ts`) mirrors the same calculations from `GET /api/lookups/incentive-schemes`. There is no admin screen for the schemes yet: edit the rows in SQL.

@@ -89,13 +89,13 @@ public static class PdfSampleData
                 {
                     Product = Unit("Daikin", "Sensira RXF25C", "-", "-"),
                     Role = ProductRole.ExternalUnit, Quantity = 1, Price = 900m, DiscountedPrice = 780m,
-                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Amount = 72m }],
+                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Mode = LineAmountModes.Percent, Value = 8m, Amount = 72m }],
                 },
                 new QuoteProduct
                 {
                     Product = Unit("Daikin", "Sensira FTXF25C", "A++", "A+"),
                     Role = ProductRole.InternalUnit, Quantity = 2, Price = 520m, DiscountedPrice = 470m,
-                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Amount = 83.2m }],
+                    Incentives = [new QuoteProductIncentive { IncentiveScheme = Scheme(IncentiveSchemeDefaults.AllInclusiveWarranty), Mode = LineAmountModes.Fixed, Value = 41.6m, Amount = 83.2m }],
                 },
             ],
             DuctedUnits =

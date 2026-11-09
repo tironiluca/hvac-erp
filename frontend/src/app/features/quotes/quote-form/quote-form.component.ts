@@ -17,7 +17,7 @@ import { MatStepperModule } from '@angular/material/stepper';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatCardModule } from '@angular/material/card';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { FGasRecordsSectionComponent } from '../../../shared/fgas-records-section/fgas-records-section.component';
@@ -30,6 +30,7 @@ import { Client } from '../../../core/models/client.model';
 import {
   ExtraType,
   IncentiveScheme,
+  LineAmountMode,
   LookupItem,
   Operator,
   Product,
@@ -45,19 +46,20 @@ import {
   QuoteExtraLine,
   QuoteIncentive,
   QuoteIncentiveInput,
+  QuoteProductIncentiveInput,
   QuoteProductInput,
   QuoteStatus,
   UpsertQuoteRequest,
   VatOption,
 } from '../../../core/models/quote.model';
 import { FloorPlanSketch } from '../../../core/models/floor-plan-sketch.model';
-import { PriceEstimate, estimateQuotePrice } from '../quote-price-estimate';
+import { PriceEstimate, defaultLineAmount, estimateQuotePrice } from '../quote-price-estimate';
 
 type UnitGroup = FormGroup<{
   productId: FormControl<number | null>;
   quantity: FormControl<number>;
-  /** `LineAmount` incentive schemes on the line (e.g. an extended warranty). */
-  incentiveSchemeIds: FormControl<number[]>;
+  /** `LineAmount` incentive schemes on the line (e.g. an extended warranty), each with its chosen mode and value. */
+  incentives: FormControl<QuoteProductIncentiveInput[]>;
 }>;
 
 /** One quote-level incentive scheme offered by the lookup, with its selection on this quote. */
@@ -103,6 +105,7 @@ type ExtraGroup = FormGroup<{
     RouterLink,
     DatePipe,
     DecimalPipe,
+    NgTemplateOutlet,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -328,13 +331,33 @@ export class QuoteFormComponent {
     this.form.controls.internalUnits.removeAt(index);
   }
 
-  protected lineHasScheme(unit: UnitGroup, schemeId: number): boolean {
-    return unit.controls.incentiveSchemeIds.value.includes(schemeId);
+  protected readonly lineModes: readonly LineAmountMode[] = ['Percent', 'Fixed'];
+
+  /** The line's choice for a scheme, or undefined when the scheme is not ticked on the line. */
+  protected lineIncentive(unit: UnitGroup, schemeId: number): QuoteProductIncentiveInput | undefined {
+    return unit.controls.incentives.value.find((i) => i.incentiveSchemeId === schemeId);
   }
 
-  protected setLineScheme(unit: UnitGroup, schemeId: number, on: boolean): void {
-    const others = unit.controls.incentiveSchemeIds.value.filter((id) => id !== schemeId);
-    unit.controls.incentiveSchemeIds.setValue(on ? [...others, schemeId] : others);
+  /** Ticks / unticks a scheme on a line; a newly ticked line starts from the scheme's default. */
+  protected setLineScheme(unit: UnitGroup, scheme: IncentiveScheme, on: boolean): void {
+    const others = unit.controls.incentives.value.filter((i) => i.incentiveSchemeId !== scheme.id);
+    unit.controls.incentives.setValue(on ? [...others, { incentiveSchemeId: scheme.id, ...defaultLineAmount(scheme) }] : others);
+  }
+
+  /** Switches a line between % of list price and € per unit, starting from the scheme's default for that mode. */
+  protected setLineMode(unit: UnitGroup, scheme: IncentiveScheme, mode: LineAmountMode): void {
+    const value = mode === 'Fixed' ? (scheme.defaultAmount ?? 0) : (scheme.percent ?? 0);
+    this.updateLineIncentive(unit, scheme.id, { mode, value });
+  }
+
+  protected setLineValue(unit: UnitGroup, schemeId: number, value: string): void {
+    this.updateLineIncentive(unit, schemeId, { value: Math.max(0, Number(value) || 0) });
+  }
+
+  private updateLineIncentive(unit: UnitGroup, schemeId: number, change: Partial<QuoteProductIncentiveInput>): void {
+    unit.controls.incentives.setValue(
+      unit.controls.incentives.value.map((i) => (i.incentiveSchemeId === schemeId ? { ...i, ...change } : i)),
+    );
   }
 
   protected addDuctedUnit(): void {
@@ -387,7 +410,7 @@ export class QuoteFormComponent {
         productId: raw.externalUnit.productId,
         role: 'ExternalUnit',
         quantity: raw.externalUnit.quantity,
-        incentiveSchemeIds: raw.externalUnit.incentiveSchemeIds,
+        incentives: raw.externalUnit.incentives,
       });
     }
     for (const line of raw.internalUnits) {
@@ -396,7 +419,7 @@ export class QuoteFormComponent {
           productId: line.productId,
           role: 'InternalUnit',
           quantity: line.quantity,
-          incentiveSchemeIds: line.incentiveSchemeIds,
+          incentives: line.incentives,
         });
       }
     }
@@ -603,13 +626,17 @@ export class QuoteFormComponent {
       this.form.controls.externalUnit.patchValue({
         productId: external.productId,
         quantity: external.quantity,
-        incentiveSchemeIds: external.incentives.map((i) => i.incentiveSchemeId),
+        incentives: external.incentives.map(({ incentiveSchemeId, mode, value }) => ({ incentiveSchemeId, mode, value })),
       });
     }
 
     for (const p of detail.products.filter((p) => p.role === 'InternalUnit')) {
       this.form.controls.internalUnits.push(
-        this.createUnitGroup(p.productId, p.quantity, p.incentives.map((i) => i.incentiveSchemeId)),
+        this.createUnitGroup(
+          p.productId,
+          p.quantity,
+          p.incentives.map(({ incentiveSchemeId, mode, value }) => ({ incentiveSchemeId, mode, value })),
+        ),
       );
     }
     for (const d of detail.ductedUnits) {
@@ -687,11 +714,15 @@ export class QuoteFormComponent {
     }
   }
 
-  private createUnitGroup(productId: number | null = null, quantity = 1, incentiveSchemeIds: number[] = []): UnitGroup {
+  private createUnitGroup(
+    productId: number | null = null,
+    quantity = 1,
+    incentives: QuoteProductIncentiveInput[] = [],
+  ): UnitGroup {
     return new FormGroup({
       productId: new FormControl<number | null>(productId, { validators: [Validators.required] }),
       quantity: new FormControl(quantity, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
-      incentiveSchemeIds: new FormControl<number[]>(incentiveSchemeIds, { nonNullable: true }),
+      incentives: new FormControl<QuoteProductIncentiveInput[]>(incentives, { nonNullable: true }),
     });
   }
 

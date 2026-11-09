@@ -201,7 +201,10 @@ public class QuotePricingServiceTests
             (External(1000m), ProductRole.ExternalUnit, 1),
             (Internal(300m), ProductRole.InternalUnit, 2));
         var internalLine = quote.Products.Single(p => p.Role == ProductRole.InternalUnit);
-        var warranty = new QuoteProductIncentive { IncentiveSchemeId = _schemes[IncentiveSchemeDefaults.AllInclusiveWarranty].Id };
+        var warranty = new QuoteProductIncentive
+        {
+            IncentiveSchemeId = _schemes[IncentiveSchemeDefaults.AllInclusiveWarranty].Id, Mode = LineAmountModes.Percent, Value = 8m,
+        };
         internalLine.Incentives.Add(warranty);
 
         await _sut.PriceAsync(quote);
@@ -219,7 +222,7 @@ public class QuotePricingServiceTests
             Code = "FREE_CHECKUP", Label = "Free check-up", Kind = IncentiveKinds.LineAmount, DefaultAmount = 20m, AddToPrice = false,
         });
         var quote = QuoteWith(VatCodes.Exempt, (External(1000m), ProductRole.ExternalUnit, 3));
-        var line = new QuoteProductIncentive { IncentiveSchemeId = cover.Id };
+        var line = new QuoteProductIncentive { IncentiveSchemeId = cover.Id, Mode = LineAmountModes.Fixed, Value = 20m };
         quote.Products.Single().Incentives.Add(line);
 
         await _sut.PriceAsync(quote);

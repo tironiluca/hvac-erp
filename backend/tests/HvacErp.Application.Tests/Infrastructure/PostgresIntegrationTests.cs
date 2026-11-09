@@ -181,7 +181,8 @@ public class PostgresIntegrationTests
             Assert.DoesNotContain(incentives, i => i.Quote.Number == 3);
 
             var warranty = Assert.Single(await db.QuoteProductIncentives.ToListAsync());
-            Assert.Equal(40m, warranty.Amount);
+            Assert.Equal(40m, warranty.Amount); // the stored amount is kept
+            Assert.Equal((LineAmountModes.Percent, 8m), (warranty.Mode, warranty.Value)); // LineIncentiveMode: the scheme's 8%
 
             var summary = PdfJson.Deserialize((await db.PdfTemplates.SingleAsync()).DefinitionJson)
                 .Sections.Single(s => s.Type == "quote.pricingSummary");

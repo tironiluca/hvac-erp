@@ -1,4 +1,4 @@
-import { IncentiveKind } from './lookup.model';
+import { IncentiveKind, LineAmountMode } from './lookup.model';
 import { FloorPlanSketch } from './floor-plan-sketch.model';
 
 export type QuoteDepartment = 'Store' | 'Field';
@@ -33,11 +33,13 @@ export interface QuoteProduct {
   incentives: QuoteProductIncentive[];
 }
 
-/** A line-level incentive (e.g. an extended warranty) with its server-computed amount. */
+/** A line-level incentive (e.g. an extended warranty): the mode and value chosen on the line, and the server-computed amount. */
 export interface QuoteProductIncentive {
   incentiveSchemeId: number;
   code: string;
   label: string;
+  mode: LineAmountMode;
+  value: number;
   amount: number;
 }
 
@@ -156,8 +158,15 @@ export interface QuoteProductInput {
   productId: number;
   role: ProductRole;
   quantity: number;
-  /** `LineAmount` incentive schemes on this line (e.g. an extended warranty). */
-  incentiveSchemeIds: number[];
+  /** `LineAmount` incentive schemes on this line (e.g. an extended warranty), each priced as chosen. */
+  incentives: QuoteProductIncentiveInput[];
+}
+
+/** A line-level incentive: `Percent` of the list unit price or `Fixed` € per unit. */
+export interface QuoteProductIncentiveInput {
+  incentiveSchemeId: number;
+  mode: LineAmountMode;
+  value: number;
 }
 
 /** A quote-level incentive; `amount` applies to `QuoteAmount` schemes (omitted: the scheme default). */

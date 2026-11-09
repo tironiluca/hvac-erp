@@ -224,6 +224,12 @@ public class QuoteProductIncentiveConfiguration : IEntityTypeConfiguration<Quote
     public void Configure(EntityTypeBuilder<QuoteProductIncentive> builder)
     {
         builder.HasIndex(i => new { i.QuoteProductId, i.IncentiveSchemeId }).IsUnique();
+        builder.Property(i => i.Mode).HasMaxLength(10).IsRequired();
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("ck_quote_product_incentives_mode", "mode IN ('Percent', 'Fixed')");
+            t.HasCheckConstraint("ck_quote_product_incentives_value_non_negative", "value >= 0");
+        });
 
         builder.HasOne(i => i.QuoteProduct)
             .WithMany(p => p.Incentives)

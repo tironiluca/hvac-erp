@@ -296,6 +296,15 @@
     "predisposed": "Pre-installed wiring",
     "incentives": "Incentives and options",
     "incentiveAmount": "Amount (€)",
+    "lineMode": {
+      "label": "Priced as",
+      "Percent": "% of list price",
+      "Fixed": "€ per unit"
+    },
+    "lineValue": {
+      "Percent": "%",
+      "Fixed": "€ per unit"
+    },
     "invoiceDiscountNeedsVat": "The invoice discount is only available on quotes that carry VAT.",
     "invoiceDiscountGrossTotal": "{{label}}: invoice total (VAT and installation included)",
     "invoiceDiscountToPay": "Amount due with the invoice discount",

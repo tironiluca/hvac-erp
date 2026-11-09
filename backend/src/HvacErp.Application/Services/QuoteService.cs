@@ -217,14 +217,36 @@ public class QuoteService(
                 Role = p.Role,
                 Quantity = p.Quantity,
             };
-            foreach (var schemeId in (p.IncentiveSchemeIds ?? []).Distinct())
+            foreach (var input in (p.Incentives ?? []).DistinctBy(i => i.IncentiveSchemeId))
             {
-                var scheme = schemes[schemeId];
+                var scheme = schemes[input.IncentiveSchemeId];
                 if (scheme.Kind != IncentiveKinds.LineAmount)
                 {
                     throw new BusinessRuleException($"'{scheme.Label}' applies to the whole quote, not to a product line.");
                 }
-                line.Incentives.Add(new QuoteProductIncentive { IncentiveSchemeId = scheme.Id, IncentiveScheme = scheme });
+
+                var (defaultMode, defaultValue) = QuotePricingService.DefaultLineAmount(scheme);
+                var mode = input.Mode ?? defaultMode;
+                if (!LineAmountModes.All.Contains(mode))
+                {
+                    throw new BusinessRuleException(
+                        $"'{mode}' is not a way to price '{scheme.Label}'. Use {string.Join(" or ", LineAmountModes.All)}.");
+                }
+                // A mode switched on the line without a value takes the scheme's default for that mode.
+                var value = input.Value
+                    ?? (mode == defaultMode ? defaultValue : mode == LineAmountModes.Fixed ? scheme.DefaultAmount ?? 0m : scheme.Percent ?? 0m);
+                if (value < 0)
+                {
+                    throw new BusinessRuleException($"The value for '{scheme.Label}' cannot be negative.");
+                }
+
+                line.Incentives.Add(new QuoteProductIncentive
+                {
+                    IncentiveSchemeId = scheme.Id,
+                    IncentiveScheme = scheme,
+                    Mode = mode,
+                    Value = value,
+                });
             }
 
             quote.Products.Add(line);
@@ -322,7 +344,7 @@ public class QuoteService(
         CancellationToken cancellationToken)
     {
         var ids = (request.Incentives ?? []).Select(i => i.IncentiveSchemeId)
-            .Concat(request.Products.SelectMany(p => p.IncentiveSchemeIds ?? []))
+            .Concat(request.Products.SelectMany(p => (p.Incentives ?? []).Select(i => i.IncentiveSchemeId)))
             .Distinct()
             .ToList();
         var schemes = await context.IncentiveSchemes
