@@ -7,6 +7,9 @@ backed by **Supabase**.
 The product carries no customer identity: a deployment's company name, colours, logo, PDF footer,
 storage bucket and hosts are configuration and data (see [Configuration](#configuration)), never code.
 
+**Documentation**: [roadmap and status](docs/ROADMAP.md) · [architecture and conventions](docs/ARCHITECTURE.md) ·
+[contributor guide](CLAUDE.md)
+
 ## Architecture
 
 ```
@@ -15,7 +18,7 @@ Angular SPA (Vercel)  ──HTTPS──►  .NET API (Render)  ─────�
         └───────────────────HTTPS (Auth + Storage)───────────────┘
 ```
 
-- **Frontend** (`frontend/`) — Angular 21, standalone components, Angular Material, [Transloco](https://jsverse.gitbook.io/transloco) for i18n (`it` default, `en` available). Talks to the API for business data and directly to Supabase for authentication (sign-in/session).
+- **Frontend** (`frontend/`) — Angular 21, standalone components, Angular Material, [Transloco](https://jsverse.gitbook.io/transloco) for i18n (`en` default, `it` available; `HVAC_DEFAULT_LANGUAGE` picks a deployment's default). Talks to the API for business data and directly to Supabase for authentication (sign-in/session).
 - **Backend** (`backend/`) — .NET 10, Clean Architecture across 4 projects:
   - `HvacErp.Domain` — entities, enums, no dependencies.
   - `HvacErp.Application` — DTOs, service interfaces, business logic (pricing, quote numbering, workflows).
