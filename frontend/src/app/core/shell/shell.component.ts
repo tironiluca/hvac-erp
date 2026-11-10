@@ -11,6 +11,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { map } from 'rxjs';
+import { DOCUMENT } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavContainer, MatSidenavModule } from '@angular/material/sidenav';
@@ -19,13 +20,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDividerModule } from '@angular/material/divider';
 import { TranslocoModule } from '@jsverse/transloco';
 import { AuthService } from '../services/auth.service';
 import { BrandingService } from '../services/branding.service';
 import { CurrentUserService } from '../services/current-user.service';
 import { LanguageService } from '../services/language.service';
+import { TenantSelectionService } from '../services/tenant-selection.service';
 import { ThemeService } from '../services/theme.service';
-import { NAV_ITEMS } from './nav-items';
+import { visibleNavItems } from './nav-items';
 
 /** At or below this width the rail turns into a full-screen overlay drawer. */
 const MOBILE_QUERY = '(max-width: 959.98px)';
@@ -46,6 +49,7 @@ const RAIL_COLLAPSED_KEY = 'hvac-nav-collapsed';
     MatButtonModule,
     MatMenuModule,
     MatTooltipModule,
+    MatDividerModule,
     TranslocoModule,
   ],
   templateUrl: './shell.component.html',
@@ -59,6 +63,8 @@ export class ShellComponent implements AfterViewInit {
   protected branding = inject(BrandingService);
   protected language = inject(LanguageService);
   private zone = inject(NgZone);
+  private selection = inject(TenantSelectionService);
+  private document = inject(DOCUMENT);
 
   @ViewChild(MatSidenavContainer) private sidenavContainer!: MatSidenavContainer;
 
@@ -80,9 +86,12 @@ export class ShellComponent implements AfterViewInit {
     { initialValue: matchMedia(MOBILE_QUERY).matches },
   );
 
-  /** Nav entries, minus admin-only ones the signed-in user is not allowed to see. */
+  /** Nav entries, minus the ones the signed-in user's role does not open. */
   protected readonly navItems = computed(() =>
-    NAV_ITEMS.filter((item) => !item.adminOnly || this.currentUser.isAdmin()),
+    visibleNavItems({
+      isAdmin: this.currentUser.isAdmin(),
+      isPlatformAdmin: this.currentUser.isPlatformAdmin(),
+    }),
   );
 
   constructor() {
@@ -112,6 +121,25 @@ export class ShellComponent implements AfterViewInit {
       requestAnimationFrame(tick);
     });
   }
+
+  /**
+   * Works in another company, or narrows to one store (`null`: every store the user may work in).
+   * Everything on screen belongs to the previous choice, so the app restarts on the dashboard
+   * instead of patching each list and the live calendar connection in place.
+   */
+  switchTo(tenantId: number, storeId: number | null): void {
+    const user = this.currentUser.user();
+    if (user?.tenantId === tenantId && this.selection.storeId() === storeId) {
+      return;
+    }
+    this.selection.select(tenantId, storeId);
+    this.document.location.assign('/');
+  }
+
+  /** True when no single store is selected among several. */
+  protected readonly allStores = computed(
+    () => this.currentUser.stores().length > 1 && this.selection.storeId() === null,
+  );
 
   signOut(): void {
     this.currentUser.clear();

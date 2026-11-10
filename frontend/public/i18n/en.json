@@ -39,6 +39,18 @@
     "collapseMenu": "Collapse menu",
     "expandMenu": "Expand menu"
   },
+  "workspace": {
+    "switch": "Switch company or store",
+    "company": "Company",
+    "store": "Store",
+    "allStores": "All stores"
+  },
+  "noAccess": {
+    "title": "No access yet",
+    "body": "Your account is not a member of any company. Ask an administrator to add you, then try again.",
+    "signedInAs": "Signed in as {{email}}",
+    "retry": "Try again"
+  },
   "dashboard": {
     "welcome": "Welcome, {{email}}",
     "subtitle": "What needs attention today.",

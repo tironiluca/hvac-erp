@@ -16,6 +16,7 @@ import { provideTransloco } from '@jsverse/transloco';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { forbiddenInterceptor } from './core/interceptors/forbidden.interceptor';
 import { correlationInterceptor } from './core/interceptors/correlation.interceptor';
+import { tenantInterceptor } from './core/interceptors/tenant.interceptor';
 import { ReportingErrorHandler } from './core/services/error-reporting';
 import { BrandingService } from './core/services/branding.service';
 import { environment } from '../environments/environment';
@@ -26,7 +27,7 @@ export const appConfig: ApplicationConfig = {
     { provide: ErrorHandler, useClass: ReportingErrorHandler },
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([correlationInterceptor, authInterceptor, forbiddenInterceptor])),
+    provideHttpClient(withInterceptors([correlationInterceptor, authInterceptor, tenantInterceptor, forbiddenInterceptor])),
     // Theme the app from the stored white-label branding before the first route renders
     // (login page included). Tolerant of a slow/unreachable API — falls back to the SCSS theme.
     provideAppInitializer(() => inject(BrandingService).loadForBootstrap()),

@@ -1,0 +1,12 @@
+<main class="no-access">
+  <mat-icon class="no-access__icon" aria-hidden="true">lock_person</mat-icon>
+  <h1 class="no-access__title">{{ 'noAccess.title' | transloco }}</h1>
+  <p class="no-access__text">{{ 'noAccess.body' | transloco }}</p>
+  @if (auth.currentUser()?.email; as email) {
+    <p class="no-access__account">{{ 'noAccess.signedInAs' | transloco: { email } }}</p>
+  }
+  <div class="no-access__actions">
+    <button mat-flat-button (click)="retry()">{{ 'noAccess.retry' | transloco }}</button>
+    <button mat-button (click)="signOut()">{{ 'nav.signOut' | transloco }}</button>
+  </div>
+</main>

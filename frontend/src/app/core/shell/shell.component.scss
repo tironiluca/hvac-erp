@@ -175,3 +175,28 @@ a[mat-list-item] {
     cursor: default;
   }
 }
+
+// Tenant / store switcher in the toolbar.
+.shell__workspace {
+  max-width: 40vw;
+  color: inherit;
+}
+
+.shell__workspace-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__menu-heading {
+  padding: 8px 16px 4px;
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (max-width: 599.98px) {
+  // The store icon alone is enough on a phone; the menu names everything.
+  .shell__workspace-label {
+    display: none;
+  }
+}

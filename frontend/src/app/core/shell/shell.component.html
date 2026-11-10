@@ -89,6 +89,51 @@
       <span class="shell__title">{{ branding.portalTitle() }}</span>
       <span class="shell__spacer"></span>
 
+      @if (currentUser.canSwitch()) {
+        <button
+          mat-button
+          class="shell__workspace"
+          [matMenuTriggerFor]="workspaceMenu"
+          [attr.aria-label]="'workspace.switch' | transloco"
+        >
+          <mat-icon>store</mat-icon>
+          <span class="shell__workspace-label">
+            @if (currentUser.tenants().length > 1) {
+              {{ currentUser.currentTenant()?.name }} ·
+            }
+            {{ allStores() ? ('workspace.allStores' | transloco) : currentUser.currentStore()?.name }}
+          </span>
+          <mat-icon iconPositionEnd>arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #workspaceMenu="matMenu">
+          @if (currentUser.tenants().length > 1) {
+            <div class="shell__menu-heading">{{ 'workspace.company' | transloco }}</div>
+            @for (tenant of currentUser.tenants(); track tenant.id) {
+              <button mat-menu-item (click)="switchTo(tenant.id, null)">
+                <mat-icon>{{ tenant.id === currentUser.currentTenant()?.id ? 'check' : '' }}</mat-icon>
+                <span>{{ tenant.name }}</span>
+              </button>
+            }
+            <mat-divider />
+          }
+          @if (currentUser.currentTenant(); as tenant) {
+            <div class="shell__menu-heading">{{ 'workspace.store' | transloco }}</div>
+            @if (tenant.stores.length > 1) {
+              <button mat-menu-item (click)="switchTo(tenant.id, null)">
+                <mat-icon>{{ allStores() ? 'check' : '' }}</mat-icon>
+                <span>{{ 'workspace.allStores' | transloco }}</span>
+              </button>
+            }
+            @for (store of tenant.stores; track store.id) {
+              <button mat-menu-item (click)="switchTo(tenant.id, store.id)">
+                <mat-icon>{{ !allStores() && store.id === currentUser.currentStore()?.id ? 'check' : '' }}</mat-icon>
+                <span>{{ store.name }}@if (store.city) { — {{ store.city }} }</span>
+              </button>
+            }
+          }
+        </mat-menu>
+      }
+
       <button mat-icon-button [matTooltip]="'nav.toggleTheme' | transloco" (click)="toggleTheme()">
         <mat-icon>{{ theme.mode() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
       </button>
@@ -103,6 +148,12 @@
             <div class="shell__user-role">
               <span>{{ 'nav.role' | transloco }}</span>
               <strong>{{ role }}</strong>
+            </div>
+          }
+          @if (currentUser.currentTenant(); as tenant) {
+            <div class="shell__user-role">
+              <span>{{ 'workspace.company' | transloco }}</span>
+              <strong>{{ tenant.name }}</strong>
             </div>
           }
         </div>

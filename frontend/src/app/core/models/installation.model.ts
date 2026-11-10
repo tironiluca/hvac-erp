@@ -15,6 +15,8 @@ export interface CalendarPresenceUser {
 
 export interface ScheduledInstallation {
   id: number;
+  /** The store the installation belongs to (its quote's store). */
+  storeId: number;
   quoteId: number;
   quoteNumber: string;
   clientName: string;

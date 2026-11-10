@@ -13,7 +13,7 @@ import { DashboardService, startOfWeek } from '../../services/dashboard.service'
 import { ActivityItem, Dashboard } from '../../models/dashboard.model';
 import { RepairStatus } from '../../models/repair.model';
 import { repairStatusColorClass } from '../../../features/repairs/repair-status';
-import { NAV_ITEMS } from '../../shell/nav-items';
+import { visibleNavItems } from '../../shell/nav-items';
 
 /** Quote status code → the `quotes.statuses.*` i18n key and `status-chip--*` modifier. */
 const QUOTE_STATUS_KEY: Record<string, string> = {
@@ -58,9 +58,10 @@ export class DashboardComponent {
 
   /** Routed modules the user can open, as dashboard shortcut cards (excludes the dashboard itself). */
   protected readonly shortcuts = computed(() =>
-    NAV_ITEMS.filter(
-      (item) => item.route && item.route !== '/' && (!item.adminOnly || this.currentUser.isAdmin()),
-    ),
+    visibleNavItems({
+      isAdmin: this.currentUser.isAdmin(),
+      isPlatformAdmin: this.currentUser.isPlatformAdmin(),
+    }).filter((item) => item.route && item.route !== '/'),
   );
 
   constructor() {

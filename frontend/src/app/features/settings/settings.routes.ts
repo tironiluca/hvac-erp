@@ -1,11 +1,12 @@
 import { Routes } from '@angular/router';
-import { adminGuard } from '../../core/guards/admin.guard';
+import { adminGuard, platformAdminGuard } from '../../core/guards/admin.guard';
 
 export const SETTINGS_ROUTES: Routes = [
   { path: '', redirectTo: 'branding', pathMatch: 'full' },
   {
     path: 'branding',
-    canActivate: [adminGuard],
+    // The branding is shared by every tenant until it becomes a per-tenant setting.
+    canActivate: [platformAdminGuard],
     loadComponent: () =>
       import('./branding-settings/branding-settings.component').then((m) => m.BrandingSettingsComponent),
   },

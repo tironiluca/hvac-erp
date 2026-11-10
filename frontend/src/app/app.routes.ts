@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { memberGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -7,9 +8,15 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   {
+    // Signed in, but not a member of any company yet.
+    path: 'no-access',
+    loadComponent: () => import('./core/pages/no-access/no-access.component').then((m) => m.NoAccessComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '',
     loadComponent: () => import('./core/shell/shell.component').then((m) => m.ShellComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, memberGuard],
     children: [
       {
         path: '',

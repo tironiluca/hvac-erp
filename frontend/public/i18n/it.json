@@ -39,6 +39,18 @@
     "collapseMenu": "Comprimi menu",
     "expandMenu": "Espandi menu"
   },
+  "workspace": {
+    "switch": "Cambia azienda o negozio",
+    "company": "Azienda",
+    "store": "Negozio",
+    "allStores": "Tutti i negozi"
+  },
+  "noAccess": {
+    "title": "Nessun accesso",
+    "body": "Il tuo account non appartiene ad alcuna azienda. Chiedi a un amministratore di aggiungerti, poi riprova.",
+    "signedInAs": "Accesso effettuato come {{email}}",
+    "retry": "Riprova"
+  },
   "dashboard": {
     "welcome": "Benvenuto, {{email}}",
     "subtitle": "Cosa richiede attenzione oggi.",

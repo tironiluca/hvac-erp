@@ -3,11 +3,12 @@ import { Subject } from 'rxjs';
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
+import { TenantSelectionService } from './tenant-selection.service';
 import { CalendarPresenceUser, ScheduledInstallation } from '../models/installation.model';
 
 /**
  * SignalR client for the shared real-time installation calendar. The server pushes every
- * `ScheduledInstallation` change (create / reschedule / delete) to all connected users, so one
+ * `ScheduledInstallation` change (create / reschedule / delete) to the users of the same store, so one
  * person moving an appointment updates everyone else's grid without a refresh. Mirrors the
  * `IInstallationCalendarClient` hub contract on the API side.
  *
@@ -17,6 +18,7 @@ import { CalendarPresenceUser, ScheduledInstallation } from '../models/installat
 @Injectable({ providedIn: 'root' })
 export class InstallationRealtimeService {
   private auth = inject(AuthService);
+  private selection = inject(TenantSelectionService);
 
   private connection?: HubConnection;
 
@@ -42,7 +44,15 @@ export class InstallationRealtimeService {
     }
 
     // environment.apiUrl is e.g. https://host/api — the hub is mapped at the site root.
-    const hubUrl = `${environment.apiUrl.replace(/\/api\/?$/, '')}/hubs/installations`;
+    // A browser WebSocket cannot carry headers, so the tenant / store selection travels in the
+    // query string; the hub then pushes only that tenant's and those stores' changes.
+    const query = new URLSearchParams();
+    const tenantId = this.selection.tenantId();
+    const storeId = this.selection.storeId();
+    if (tenantId !== null) query.set('tenant', String(tenantId));
+    if (storeId !== null) query.set('store', String(storeId));
+    const suffix = query.size ? `?${query}` : '';
+    const hubUrl = `${environment.apiUrl.replace(/\/api\/?$/, '')}/hubs/installations${suffix}`;
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl, { accessTokenFactory: () => this.auth.currentSession()?.access_token ?? '' })
       .withAutomaticReconnect()

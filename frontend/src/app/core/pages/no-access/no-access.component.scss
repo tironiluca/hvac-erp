@@ -1,0 +1,44 @@
+.no-access {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+}
+
+.no-access__icon {
+  width: 56px;
+  height: 56px;
+  font-size: 56px;
+  color: var(--mat-sys-primary);
+}
+
+.no-access__title {
+  margin: 0;
+  font: var(--mat-sys-headline-small);
+}
+
+.no-access__text {
+  max-width: 52ch;
+  margin: 0;
+  font: var(--mat-sys-body-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.no-access__account {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+}
+
+.no-access__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
