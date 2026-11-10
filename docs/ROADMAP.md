@@ -1,8 +1,9 @@
 # HVAC ERP — Roadmap and status
 
 **This file is the source of truth for progress.** Checkboxes track outstanding work; resume from the
-first unchecked box. What was delivered is summarised here; the detail lives in git history, the
-[README](../README.md) and [ARCHITECTURE.md](ARCHITECTURE.md), not duplicated back into this file.
+first unchecked box of the next item in §1's *Suggested order*. What was delivered is summarised
+here; the detail lives in git history, the [README](../README.md) and
+[ARCHITECTURE.md](ARCHITECTURE.md), not duplicated back into this file.
 
 **Ground rules**
 
@@ -33,16 +34,47 @@ first unchecked box. What was delivered is summarised here; the detail lives in 
 | In-app PDF template editor | ✅ | |
 | Free-hand floor-plan sketch | ✅ | |
 | Engineering hardening — tests, CI, authz, RLS, docs, observability, backplane, dashboard | ✅ | |
-| Company-agnostic product, English defaults | ✅ | §3 |
-| Incentive schemes as data | ✅ | §4 — admin screen open |
+| Company-agnostic product, English defaults | ✅ | §3 — two leftovers |
+| Incentive schemes as data | ✅ | §4 — admin screen in §12 |
 | Main-ERP integration + mock ERP | ✅ | §5 — real adapter open |
 | Multi-tenant and multi-store | ❌ | §6 |
 | Statistics | ❌ | §7 |
-| Proper data tables (server paging, sort, filters, export) | ❌ | §8 |
+| Proper data tables (server paging, sort, filters, export), global search | ❌ | §8 |
 | Proper README, quick start and docs | ❌ | §9 |
-| Warehouse / offers / staff leave modules | ❌ | §10 |
-| Operations checklist for a deployment | — | §11 |
-| Open product questions | — | §12 |
+| Offers / staff leave / customer portal / smaller modules | ❌ | §10 |
+| Security and access hardening | ❌ | §11 — review findings, **do first** |
+| Administration: users, catalogue, reference data | ❌ | §12 — today: SQL |
+| Quote lifecycle: state machine, follow-ups, acceptance, payments | ❌ | §13 |
+| One field calendar: installations, repairs, surveys, conflicts | ❌ | §14 |
+| Technician mobile app (PWA) | ❌ | §15 |
+| Installed equipment, warranty, maintenance contracts | ❌ | §16 |
+| F-Gas compliance register | ❌ | §17 — records exist, the register does not |
+| Notifications and document archive | ❌ | §18 |
+| Warehouse and purchasing | ❌ | §19 |
+| Platform and quality | ❌ | §20 |
+| Operations checklist for a deployment | — | §21 |
+| Open product questions | — | §22 |
+
+**Suggested order** (why this order, not just what)
+
+1. **§11 Security and access hardening** — closes exposures that exist on a live deployment today.
+2. **§5** end-to-end check — small, proves the outbox on a real deployment.
+3. **§6 decision, then its schema steps** — §13–§19 add some twenty tables. Each one created
+   before tenancy is a table to backfill and re-secure later; each one created after is born with
+   `tenant_id` and a tenant policy. Decide now (§22); if the answer is yes, land §6 steps 1–2
+   here.
+4. **§8 paging contract + §12 administration** — every later module needs real grids and in-app
+   reference data; this also ends the "edit it in SQL" steps.
+5. **§18 notification outbox** — §13, §14, §16 and §17 all send reminders through it.
+6. **§13 quote lifecycle** → **§14 one calendar** → **§15 technician app** — sell, plan,
+   execute.
+7. **§16 equipment and maintenance** → **§17 F-Gas register** — the after-sales loop and
+   recurring revenue; §17 hangs its records on §16's units.
+8. **§7 statistics** — worth more once §13 records lost reasons, payments and job completion.
+9. **§19 warehouse and purchasing**, then §10.
+
+§9 (docs) and §20 (platform) are not on the critical path: take a step from them alongside any
+item.
 
 ---
 
@@ -89,7 +121,7 @@ Condensed, in delivery order.
 
 ---
 
-## 3. Company-agnostic product — done
+## 3. Company-agnostic product — done, two leftovers
 
 - [x] Company data out of code: empty default PDF footer, neutral default title "HVAC ERP" and
   colour seeds, `@example.com` seed e-mails, storage bucket from configuration (default
@@ -103,6 +135,15 @@ Condensed, in delivery order.
   available (`HVAC_DEFAULT_LANGUAGE=it`, per-template PDF language). Values the code matched by text
   became codes: `service_items.code`, `products.is_hydronic`, categories `Outdoor` / `Indoor`
   (migration `EnglishDefaultsAndStableCodes`, tested against Italian-shaped data).
+
+- [ ] Leftover from the rename: the scaffold `.http` file in `backend/src/HvacErp.Api/` still has a
+  pre-rename project name as its **file name** (text searches miss file names) and calls a
+  `/weatherforecast` endpoint that does not exist. Delete it, and add a CI check that greps file
+  *names* as well as contents for the old identifiers. The name stays in git history; rewrite
+  history only if that matters to the deployment's owner.
+- [ ] English leftovers: the quote PDF is uploaded as `preventivo-{number}-….pdf`
+  (`QuotePdfService`); the README's calendar paragraph quotes Italian slot labels. Name files from
+  the template language.
 
 **Done when** a fresh deployment with only the default seeds shows no customer identity. Keep it
 that way: review every change for brand names, hosts and project ids.
@@ -120,7 +161,7 @@ calculation `kind` and its parameters (see the README's *Incentive schemes*).
 - [x] Every quote amount is a fixed € or a % of the equipment list total, chosen per quote; the
   warranty covers the whole quote and is charged with the equipment before VAT (`charge_before_vat`,
   migration `QuoteLevelWarranty`).
-- [ ] Admin screen to edit `incentive_schemes` (today: SQL).
+- Admin screen to edit `incentive_schemes` (today: SQL) — tracked in §12.
 
 ## 5. Main-ERP integration — push confirmed orders
 
@@ -152,8 +193,15 @@ and the connection is a deployment setting, not code.
 - [x] Mock ERP endpoints + page (migration `ErpIntegration`; `mock_erp_orders` has RLS and no
   policies).
 - [ ] End-to-end check on a deployment: a confirmed quote reaches the mock ERP on its own.
-- [ ] Real ERP adapter once the target ERP and its API are known (§12: which ERP, which objects —
+- [ ] Real ERP adapter once the target ERP and its API are known (§22: which ERP, which objects —
   order vs. offer vs. delivery note — and who owns customer / article codes).
+- [ ] Before a second API instance: the worker reads due rows without a lock
+  (`ErpExportService.ProcessDueAsync`), so two instances push the same order twice and rely on the
+  ERP deduplicating by `externalReference`. Claim rows with `FOR UPDATE SKIP LOCKED` (§20 job
+  runner).
+- [ ] Alert when an export ends `Failed` (§18), and an admin list of exports with bulk retry (§8).
+- [ ] Inbound: order status / invoice number back from the ERP (webhook or poll through the same
+  port), shown on the quote; customer and article code mapping tables once ownership is decided.
 
 ## 6. Multi-tenant and multi-store
 
@@ -225,9 +273,12 @@ the tenant / store context of §6. "Purchase" = confirmed quote; once §5 is liv
 the ERP".
 
 **Steps**
-- [ ] Metric definitions agreed (§12: is "purchase" the confirmation, the deposit or the ERP order?),
+- [ ] Metric definitions agreed (§22: is "purchase" the confirmation, the deposit or the ERP order?),
   service + endpoint + tests on seeded demo data.
 - [ ] Statistics page (tiles, charts, filters, CSV) and fun facts.
+- [ ] Once their data exists: lost reasons and win rate by reason (§13), margin and discount depth
+  (§13), cash collected vs. outstanding (§13), first-time-fix rate and time on site (§15),
+  maintenance renewal rate and contract revenue (§16), stock turns (§19).
 
 ## 8. Proper data tables for every list
 
@@ -271,6 +322,12 @@ exports, tenants / stores) becomes a real data grid that scales with the data.
 - [ ] Quotes, repairs, installations on the new contract and component; indexes.
 - [ ] Column chooser, saved views, CSV / Excel export, bulk actions.
 - [ ] Mobile card layout and accessibility pass.
+- [ ] **Global search** in the toolbar (`Ctrl+K`): one endpoint over clients (name, code, phone,
+  tax code), quotes (number), repairs (id, description) and, later, unit serials (§16). Today the
+  client search is `lower(col) LIKE '%term%'` over four columns (`ClientService.SearchAsync`) — a
+  sequential scan; add `pg_trgm` GIN indexes in the same migration.
+- [ ] Projection queries for the lists: `GetListAsync` in the quote and repair services loads full
+  entities with `Include` and maps in memory; select the DTO in SQL when the paging contract lands.
 
 ## 9. A proper README, quick start and docs
 
@@ -300,54 +357,501 @@ in CI.
 
 **Steps**
 - [ ] Demo seed + `docker-compose.yml` quick start, verified from a clean clone.
-- [ ] README rewrite with features, concepts, deploy-your-own.
+- [ ] README rewrite with features, concepts, deploy-your-own. Fix while there: the README says CI
+  and the hosts act on `master` (the default branch is `main`), tells the operator to create a
+  **public** bucket (§11), and documents attachment deletion as removing the file (it does not).
 - [ ] Screenshot script and images; badges; link check in CI.
 - [ ] `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`.
 
 ## 10. Further modules
 
-Roughly in priority order.
+Smaller than §11–§19 or dependent on them. Roughly in priority order.
 
-- **Warehouse / inventory** — the largest remaining module: product and client registries, stock
-  load / consume, EAN generation and reconciliation, stock reports. Its own `features/warehouse/`
-  area, entities and endpoints.
-- **Product offers / promotions** — depends on warehouse stock data.
 - **Staff planning and leave** — a calendar-style entry form over a new `leave` table; feeds crew
-  availability in the installation calendar.
-- **Integrations** (touch the warehouse and offers): client import (CSV / Excel), price-list import
-  and export (Excel), an order-export interchange file, stock and client-registry lookups in an
-  external system.
+  availability and the conflict check in the field calendar (§14).
+- **Incentive paperwork tracking** — schemes are priced today (§4) but the practice behind them is
+  not followed: per scheme, a checklist of required documents and a deadline as data; per quote, the
+  checklist's state, uploaded documents (§18 archive) and a reminder before the deadline.
+- **Customer portal** — a signed-in area for the customer on top of the acceptance link of §13:
+  their quotes and documents, appointment dates, unit list and warranty (§16), "book a maintenance
+  visit", "report a fault" (creates a repair in `New`). Its own Supabase role and RLS policies.
+- **Product offers / promotions** — time-boxed price or bundle rules on catalogue rows; stock-aware
+  once §19 exists.
+- **Imports and exchanges**: client import (CSV / Excel) with a dry run and duplicate detection,
+  price-list import and export (§12), an order-export interchange file for ERPs with no API (§5), a
+  hand-off of payments to accounting / e-invoicing when the main ERP does not issue invoices (§22).
+- **Sizing helper** — room by room (area, height, exposure, insulation, climate zone → suggested
+  capacity) in the quote wizard, filtering units by `products.max_btu`; coefficients are data.
 - **Support error report** — a support-facing error report on top of the structured logs and
-  Sentry.
+  Sentry, keyed by the correlation id the SPA already shows.
 
-## 11. Operations checklist for a deployment
+## 11. Security and access hardening — do first
+
+Found by reading the code against a live-deployment threat model. Each item names where it lives.
+
+**Findings**
+- **Anyone who can sign in becomes Sales.** `SupabaseUserClaimsTransformation` inserts an `AppUser`
+  with role `Sales` for every valid Supabase token it has not seen, and every RLS read policy is
+  `USING (true)` for `authenticated`. Whether strangers can obtain a token depends on one dashboard
+  setting — "allow new users to sign up" — that the repository neither sets nor documents. With it
+  on, the publishable key in the SPA bundle is enough to register, read every table through the
+  Data API and write through the API. There is no user screen: roles change in SQL.
+- **Customer documents are public and enumerable.** `SupabaseStorageService` returns
+  `/object/public/…` URLs and the README asks for a public bucket. A quote PDF lives at
+  `quotes/{id}/preventivo-{number}-v{version}r{revision}.pdf` — sequential ids, no secret — and
+  carries name, address, tax code and prices. Work orders and repairs follow the same pattern.
+- **Uploads are not checked.** Quote attachments accept any content type up to 20 MB and store the
+  client-supplied type (`QuotesController.UploadAttachment`); branding uploads already whitelist
+  theirs. Deleting an attachment removes the row and leaves the object
+  (`QuoteAttachmentService.DeleteAsync`).
+- **A confirmed quote can be deleted.** `QuoteService.DeleteAsync` has no status guard; the ERP
+  export row cascades away with it, so an order the ERP holds loses its trace here. (A scheduled
+  installation blocks the delete only through the foreign key, as a generic 400.)
+- **F-Gas records can be deleted** (`DELETE /api/fgas-records/{id}`) although they are compliance
+  evidence; §2 describes the API as append-only.
+- **No rate limiting, HSTS or forwarded-header handling** in `Program.cs`; the anonymous endpoints
+  (`/api/branding`, `/mock-erp`, `/health`) are the exposed surface.
+- **No audit trail beyond status events**: who changed a price, a client's data or a role is not
+  recorded; there is no way to export or erase one customer's personal data on request.
+- **Quote numbers race**: `QuoteNumberingService` takes `MAX(number) + 1` in application code. Two
+  simultaneous first quotes collide on the unique index and one user gets a 409 for a number they
+  never typed.
+
+**Design**
+- **Access is granted, never assumed.** `users.status` (`Invited` / `Active` / `Disabled`); the
+  claims transformation adds a role only for `Active` rows and no longer inserts. An unknown or
+  disabled identity gets 403 on everything except `GET /api/me` (which says "no access yet"). RLS
+  read policies become `current_app_role() IS NOT NULL` and `current_app_role()` returns null unless
+  the row is `Active`. The first admin comes from `Bootstrap:AdminEmail`, honoured only while no
+  admin exists.
+- **Invitations**: an admin invites by e-mail through the Supabase Auth admin API (the API already
+  holds the service-role key), choosing the role and the linked installer / operator. Login gains
+  "forgot password" and optional TOTP; admins can be required to enrol.
+- **Private storage**: bucket private, rows store the object **path**, the API hands out signed
+  URLs that expire in minutes (`GET /api/quotes/{id}/pdf-url`, same for repairs, installations,
+  attachments). Branding assets stay public under their own prefix or bucket. Migration: strip the
+  public base URL from stored values, with a working `Down`.
+- **Uploads**: content-type and extension whitelist (images, PDF), size cap, type sniffed from the
+  bytes, never trusted from the header; storage object deleted with its row and when the parent is
+  deleted.
+- **Deletes with consequences become cancellations**: a quote that is confirmed, exported or
+  scheduled is cancelled (§13), not deleted; an F-Gas record is voided by a correcting entry (§17).
+- **Edge**: ASP.NET rate limiter (per user, tighter per IP on anonymous routes), HSTS, forwarded
+  headers for the proxy, `MockErp:Enabled` refused in Production unless explicitly forced.
+- **Audit and privacy**: `audit_entries` (who, when, entity, key, changed columns as `jsonb`)
+  written by a `SaveChanges` interceptor for a whitelist of entities, append-only, Admin-read;
+  `GET /api/clients/{id}/export` (everything held about one person) and an anonymise action that
+  blanks identity fields while keeping the fiscal records the law requires.
+- **Numbering**: a Postgres sequence for new quote numbers (per store once §6 lands); version and
+  revision computed under a per-client advisory lock.
+
+**Steps**
+- [ ] §21 today, no code: sign-ups off; Data API off or `public` removed from its exposed schemas
+  (the SPA uses Supabase for Auth and Storage only).
+- [ ] User status, no auto-provisioning, bootstrap admin, RLS read policies require a role;
+  migration + RLS test + API tests for the unknown-identity path.
+- [ ] Private bucket, stored paths, signed-URL endpoints, SPA and PDF generators updated, data
+  migration. **Needs a deployment step** (bucket flipped to private after the release).
+- [ ] Upload whitelist and storage clean-up; delete guards on quotes; F-Gas delete removed.
+- [ ] Rate limiter, HSTS, forwarded headers, mock-ERP production guard.
+- [ ] Audit entries + interceptor + admin viewer; client data export and anonymise.
+- [ ] Quote number sequence; concurrency test in the Postgres suite.
+- [ ] Dependency and secret scanning in CI (`dotnet list package --vulnerable`, `npm audit`,
+  secret scan), failing on high severity.
+
+## 12. Administration — users, catalogue and reference data in-app
+
+Goal: nothing a business changes in normal operation needs SQL or a release.
+
+**Today** — the API has no write endpoint for products, price lists, discount tiers, service
+items, extra types, incentive schemes, installers, operators, client sources, the lookup tables or
+users; `LookupsController` is read-only and `seed` is the only writer. RLS already limits these
+tables to Admin writes, so the screens add no new policy shape.
+
+**Screens** (all `AdminOnly`, all on the §8 data table)
+- **Users and roles** (§11): invite, role, linked installer / operator, disable, last sign-in.
+- **Catalogue**: products (every field of `Product`, photo, active flag), price lists with their
+  discount ladder, service items (engine-read `code` rows are protected from deletion and
+  re-coding), extra types.
+- **Incentive schemes** (from §4): a form per `kind` showing only that kind's parameters, with a
+  worked example recomputed live by the same code as the wizard preview.
+- **People**: installers and crews (drag installers between crews), operators.
+- **Lookups**: labels, colours, order and active flag of statuses, VAT options, day slots,
+  departments, client sources. Codes are immutable; a code the engine branches on cannot be
+  deactivated.
+- **Price-list import**: Excel / CSV upload → dry run showing added / changed / deactivated rows
+  and the price delta → apply in one transaction; export in the same layout.
+
+**Rules that come with it**
+- **Deactivate, never delete** anything a quote references (the foreign keys already `RESTRICT`).
+- **Price history**: `product_prices` (product, valid from, price columns) so a catalogue change is
+  dated; a new price list can be loaded ahead of its start date.
+- **Reprice policy** (§22): saving a draft re-reads service-item and extra prices from the
+  catalogue (`QuoteService.ApplyRequestAsync`), so an old draft silently changes price after a
+  catalogue edit. Keep each line's snapshot until the user presses *Reprice*, and show "prices as
+  of {date}" on the quote.
+- Cached lookups: the SPA re-fetches a lookup when an admin saves it (a SignalR "lookups changed"
+  message is enough).
+
+**Steps**
+- [ ] Users and roles screen (with §11).
+- [ ] Generic lookup editor + installers / crews / operators.
+- [ ] Products, price lists and tiers, service items, extra types; price history.
+- [ ] Incentive schemes editor.
+- [ ] Price-list import / export; reprice policy.
+
+## 13. Quote lifecycle — from enquiry to money
+
+Goal: the quote list tells the truth about the pipeline, and the steps around a quote (sending it,
+chasing it, getting a yes, collecting the deposit) happen in the product.
+
+**Today** — four statuses (`Draft`, `SurveyDone`, `Recalled`, `Confirmed`) and any transition is
+accepted; a quote that will never close stays open forever, so the dashboard's pipeline and "oldest
+open" only grow. A recall stores a note but no date to call back. Versions and revisions are
+inferred from "same client, same outdoor unit" (`QuoteNumberingService`), with no *Duplicate* or
+*New revision* action. `ManualDiscount` is unbounded and no cost is stored, so margin is unknown.
+Nothing records a payment.
+
+**Design**
+- **State machine** (settles a §22 question): `Draft → SurveyDone → Sent → Confirmed`, with
+  `Recalled` as a repeatable event rather than a state, and the exits `Lost`, `Expired`,
+  `Cancelled`. Allowed transitions are a `quote_status_transitions` table (from, to, required role)
+  enforced in `QuoteService`; statuses stay lookup rows. `Lost` requires a reason from a
+  `quote_lost_reasons` lookup.
+- **Validity**: `valid_until` (default from a setting, printed on the PDF); a daily job moves
+  overdue `Sent` quotes to `Expired`; reopening is a new revision at current prices.
+- **Follow-ups**: `quote_follow_ups` (due date, note, owner, done at). A recall creates one; "my
+  follow-ups today" on the dashboard; a daily digest by e-mail (§18).
+- **Explicit versioning**: *Duplicate*, *New revision* (same number / version) and *New version*
+  (an alternative for the same client) as actions; a side-by-side comparison of two revisions; the
+  PDF can print up to three versions as options on one page.
+- **Send and accept**: *Send to customer* e-mails the PDF (§18) with a link to a tokenised public
+  page: the quote, *Accept* (typed name + a code sent by e-mail or SMS) or *Ask a question*.
+  Acceptance stores who / when / IP / document hash and confirms the quote through the same
+  `ConfirmAsync` path (ERP outbox included). The token is single-purpose, expiring and
+  rate-limited.
+- **Survey as an appointment**: a site survey is scheduled on the calendar (§14) with a surveyor
+  (answers "a surveyor distinct from the agent" in §22); completing it sets `SurveyDone`.
+- **Payments**: `quote_payment_terms` (deposit % / balance, as data) → `quote_payments` (date,
+  amount, method lookup, reference, recorded by); outstanding balance on the quote and the client;
+  a receipt PDF. This is collection tracking, not invoicing (§22).
+- **Margin and discount control**: `cost` on products and service items; margin per quote visible
+  to Admin; a discount above a per-role threshold needs an Admin approval (`quote_approvals`)
+  before the quote can be sent. Pricing changes follow the rule: Application tests plus
+  `quote-price-estimate.ts` kept in step.
+- **Free-text lines**: an ad-hoc priced line and a memo printed on the PDF (two more §22 fields),
+  flagged in the ERP order as off-catalogue.
+
+**Steps**
+- [ ] Transition table + enforcement + `Sent` / `Lost` / `Expired` / `Cancelled`, lost reasons,
+  `valid_until` and the expiry job; delete guard from §11.
+- [ ] Follow-ups + dashboard tile.
+- [ ] Duplicate / new revision / new version actions, comparison view.
+- [ ] Send by e-mail and the acceptance page (after §18).
+- [ ] Payment terms, payments, receipt PDF.
+- [ ] Costs, margin, discount approval.
+- [ ] Ad-hoc line and memos.
+
+## 14. One field calendar — installations, repairs, surveys
+
+Goal: one place answers "who is where, when" and refuses a plan that cannot work.
+
+**Today** — the calendar shows installations only. Repair visits are `repair_schedule_entries`: one
+installer, a date, no slot, created by `POST /api/repairs/{id}/schedule` with no endpoint to change
+or remove one, and invisible on the calendar. Nothing checks availability: the same crew can be
+booked twice in a slot (`InstallationService.ApplyScheduleAsync`). A quote can have exactly one
+installation, so a two-day job cannot be planned. An installation has no state — nothing says it
+happened.
+
+**Design**
+- **`appointments`** replaces the two shapes: type (`Installation` / `Repair` / `Revision` /
+  `Survey` / `Block`), parent (quote or repair), start day + slot, **duration in half-days**, crew
+  or individual installers, status (`Planned` → `EnRoute` → `InProgress` → `Done` / `NotDone` with
+  a reason), notes, concurrency token. Migration moves `scheduled_installations` and
+  `repair_schedule_entries` across with a working `Down`; a Postgres test covers it.
+- **Several appointments per job**; the first estimate of duration comes from the quote (units,
+  ducted outlets, extras) through coefficients held as data.
+- **Conflicts**: overlapping bookings of an installer, leave (§10), and public holidays (a
+  calendar table per deployment) are a warning the planner must confirm, enforced server-side so
+  the SignalR drag path cannot skip it.
+- **Views**: the existing crew week grid and month view gain a type filter and colour, a day
+  view, a per-installer view, and an "unscheduled" side list (confirmed quotes with no
+  appointment, open repairs with none) to drag from.
+- **Zones**: group and sort the unscheduled list by city / postcode; an optional map and
+  travel-time hint through a geocoding port (`None` by default, provider by configuration).
+- **Feeds**: a private ICS URL per installer; customer confirmation and day-before reminder (§18).
+- The hub is renamed from installations to calendar; its contract stays versioned for old tabs.
+
+**Steps**
+- [ ] `appointments` + migration + service with conflict rules + tests; repair visits editable.
+- [ ] Calendar on the new model: types, multi-slot blocks, unscheduled list, filters.
+- [ ] Appointment status and completion; dashboard "today" tile.
+- [ ] Holidays and leave in the conflict check; duration estimate.
+- [ ] ICS feeds; zones; optional geocoding port.
+
+## 15. Technician mobile app (PWA)
+
+Goal: the crew works from a phone — no printed work order to bring back and retype.
+
+**Today** — field staff have no place in the product: the roles are Admin / Sales / Warehouse,
+`AppUser.InstallerId` exists but nothing reads it, and the installation PDF prints empty signature
+boxes. Photos attach to quotes only.
+
+**Design**
+- **Role `Installer`**: sees only appointments assigned to the linked installer (API filter and
+  RLS predicate), with the client's contact and address for those jobs and nothing else.
+- **My day**: today's and tomorrow's jobs, tap to call or navigate, the work-order content, the
+  floor-plan sketch read-only.
+- **On the job**: start / stop (time on site), a checklist per job type (commissioning,
+  maintenance, repair — templates are data), photos before / after, materials used (issues stock
+  in §19), unit serials by camera barcode scan (creates the installed units of §16), an F-Gas entry
+  (§17), notes, *could not complete* with a reason.
+- **Sign-off**: customer signature on screen (the sketch component's canvas, single stroke set),
+  rendered into a completion report PDF (a new `PdfDocumentType`, editable in the template editor)
+  and e-mailed to the customer (§18).
+- **Offline-tolerant**: service worker, the day's jobs cached, mutations queued with an
+  idempotency key and replayed; photos uploaded in the background. Conflicts resolve "server
+  wins, show me" — a technician never plans.
+- Same Angular app, a `features/field/` area with its own shell, installable; no app store.
+
+**Steps**
+- [ ] `Installer` role, policies, RLS predicates, authorization matrix entries.
+- [ ] My day + job detail (online).
+- [ ] Checklists, photos on appointments, time on site.
+- [ ] Signature + completion report PDF + e-mail.
+- [ ] Offline queue and background upload; Playwright run on a phone viewport.
+
+## 16. Installed equipment, warranty and maintenance contracts
+
+Goal: the product remembers what was installed where, and turns that into planned, recurring work.
+
+**Today** — after installation the trail ends. A repair names its unit as free text
+(`Repair.Brand`) with an optional quote link; there is no serial number, warranty date or service
+history. A client has one address plus a per-quote free-text installation address. Revisions exist
+as a repair type but each is created by hand.
+
+**Design**
+- **Sites**: `client_sites` (address, city, postcode, access notes, contact on site). Quotes,
+  repairs and appointments reference a site; the free-text installation address migrates into it.
+- **`installed_units`**: site, product (or free text for units installed by others), serial,
+  installed on (from the completed appointment, §14), refrigerant and charge, manufacturer warranty
+  end, extended-warranty end (from the quote's warranty scheme), status (active / replaced /
+  removed), a QR label linking to the unit page.
+- **Client page**: one view of a customer — sites, units, quotes, appointments, repairs, payments,
+  F-Gas records, documents, messages — replacing the edit dialog as the place to land.
+- **Repairs reference a unit**; the form shows warranty state and the unit's history. A warranty
+  claim towards the manufacturer is tracked on the repair (reference, sent, answered) — the
+  `AssistanceRequested` / `AssistanceContacted` statuses already model the conversation.
+- **Maintenance plans**: `maintenance_plans` (name, visits per year, price, what is included, as
+  data) and `maintenance_contracts` (client, units covered, start, renewal date, price, status). A
+  daily job creates the next `Revision` repair a configurable number of weeks before it is due and
+  drops it in the unscheduled list (§14); renewal reminders go to the customer (§18).
+- **Campaigns**: "units installed more than N months ago with no visit since" as a saved filter
+  that produces a call list or a batch of offers — the pre-season service drive.
+
+**Steps**
+- [ ] Sites; address migration from clients and quotes.
+- [ ] Installed units, created at job completion; QR label PDF; unit page.
+- [ ] Client page.
+- [ ] Repairs linked to units; warranty state and claim tracking.
+- [ ] Plans, contracts, the generator job, renewal reminders.
+- [ ] Campaign filters.
+
+## 17. F-Gas compliance register
+
+Goal: the refrigerant records satisfy an inspection and the product tells the company when a check
+is due.
+
+**Today** — `FGasRecord` holds a gas name as free text, kilograms, a refill flag and a surcharge
+flag, attached to a quote or a repair. There is no technician, certificate, unit, or CO₂
+equivalent; the nav entry "F-Gas Records" has no page behind it; records can be deleted (§11).
+
+**Design**
+- **`refrigerants`** lookup (code, label, GWP, flammability class, active) replacing the free
+  text; CO₂-equivalent = kilograms × GWP, stored with the record so a later GWP revision does not
+  rewrite history.
+- **Record types**: initial charge, top-up, recovery, leak check (with result), repair of a leak,
+  decommissioning; each against an **installed unit** (§16), with the technician, their personal
+  certificate and the company certificate (number + expiry on installers and on the company;
+  expiry reminders).
+- **Append-only**: a wrong record is voided by a correcting entry; RLS drops update and delete.
+- **Leak-check schedule**: the bands by tonnes of CO₂-equivalent and their intervals are lookup
+  rows (the EU regulation sets them, with longer intervals where a leak-detection system is
+  fitted); a job computes each unit's next due date and creates the visit like a maintenance
+  revision.
+- **Cylinders**: `refrigerant_cylinders` (gas, serial, purchased kg) and a movement per record, so
+  purchased − charged + recovered reconciles per gas and period.
+- **Register page**: filter by period, gas, technician, client, unit; totals in kg and CO₂e;
+  export (CSV / PDF) and a per-country export adapter for the national register, behind a port
+  like the ERP connector — the format is a deployment setting, not code in the domain.
+- **Documents**: an F-Gas report per intervention for the customer (template type in the editor).
+
+**Steps**
+- [ ] Refrigerants lookup, record types, technician and certificates; migration of existing rows.
+- [ ] Register page and exports; the nav entry gets its route.
+- [ ] Unit link (after §16), leak-check schedule and due job.
+- [ ] Cylinder ledger and reconciliation.
+- [ ] National-register export adapter once the market is known (§22).
+
+## 18. Notifications and document archive
+
+Goal: the product talks — to staff and to customers — and keeps what it issued.
+
+**Today** — nothing is sent to anyone. Generated PDFs overwrite the previous file at the same path
+(`x-upsert`), so the document a customer was given cannot be shown again once the quote changes.
+
+**Design**
+- **Outbox**, same rule as the ERP (ARCHITECTURE: external calls go through ports and outboxes):
+  `notification_outbox` written in the business transaction, sent by a worker with back-off.
+- **Port `INotificationChannel`** per channel, chosen by configuration: e-mail (SMTP or a
+  transactional API), SMS, a messaging-app business API; `None` by default. Credentials are
+  deployment secrets.
+- **Templates as data**: per event and language, subject + body with placeholders, edited by an
+  admin with a preview; sender name and reply-to from branding.
+- **Events — customer**: quote sent, appointment confirmed, reminder the day before, job completed
+  with the report, payment receipt, maintenance due, contract renewal, leak check due.
+  **Staff**: follow-ups due, urgent repair opened, ERP export failed, certificate expiring, low
+  stock (§19).
+- **Consent and log**: per client and channel opt-in flags with the date and source; every message
+  on the client page (§16) with its delivery status; an unsubscribe link on anything that is not
+  transactional.
+- **In-app notification centre**: a bell in the toolbar fed by the existing SignalR connection and
+  a `user_notifications` table.
+- **Document archive**: `documents` (owner entity, type, version, storage path, hash, issued at,
+  issued by, sent to). Each *issued* PDF is immutable; regenerating creates a version. Attachments
+  on repairs, appointments and units use the same table and the upload rules of §11.
+
+**Steps**
+- [ ] Outbox, worker, e-mail channel, template editor, two events end to end (follow-up digest,
+  appointment reminder).
+- [ ] Consent flags, message log, unsubscribe.
+- [ ] Notification centre.
+- [ ] Document archive with versions; attachments everywhere.
+- [ ] SMS / messaging channel once a provider is chosen (§22).
+
+## 19. Warehouse and purchasing
+
+Goal: know what is in stock, reserve it for confirmed jobs and reorder before it runs out. This is
+the largest remaining module; it gives the `Warehouse` role, which can write nothing today, its
+work.
+
+**Today** — `products.stock` is an integer that the seeders set and nothing else writes; the
+catalogue carries `ean`, `location` and `stock_notes`; service items (consumables) have no stock at
+all.
+
+**Design**
+- **Ledger, not a counter**: `stock_movements` is append-only (item, location, quantity ±, type:
+  receipt / issue to job / return / transfer / adjustment / stocktake, reference, who, when).
+  On-hand is the sum, kept in `stock_levels` by the same transaction; `products.stock` becomes a
+  read-only projection and is then dropped.
+- **Items and locations**: units and consumables share one `stock_items` identity; locations are
+  the warehouse, its bins, and each van (a crew's van is a location, so "what is on the van" is a
+  query). Units are tracked by serial where the brand provides one.
+- **Reservation**: confirming a quote reserves its units and listed materials (available = on
+  hand − reserved); the quote wizard shows availability and the expected date when short.
+- **Picking**: a picking list per appointment (PDF with barcodes, a `PdfDocumentType`), picked by
+  scanning — issue movements against the job; unused material returns on completion (§15).
+- **Purchasing**: suppliers, supplier item codes and costs, purchase orders (`Draft → Sent →
+  PartiallyReceived → Received / Cancelled`), goods receipt by scanning against the order, reorder
+  point and quantity per item with a "to order" list that drafts orders per supplier.
+- **Stocktake**: count sheets per location, differences posted as adjustments with a reason.
+- **Valuation**: moving average cost per item; feeds the margin of §13.
+- **Barcodes**: internal EAN generation for items without one; label printing.
+- Policies: a `WarehouseOrAdmin` policy and matching RLS predicates; every table ships with both.
+
+**Steps**
+- [ ] Items, locations, movement ledger, levels, the Warehouse policy; migration from
+  `products.stock`.
+- [ ] Receipts, issues, transfers, adjustments in `features/warehouse/`; scanning.
+- [ ] Reservation at confirmation and availability in the wizard.
+- [ ] Picking lists and van stock.
+- [ ] Suppliers, purchase orders, goods receipt, reorder list.
+- [ ] Stocktake, valuation, stock reports.
+
+## 20. Platform and quality
+
+Not features; they keep the features above cheap to build and safe to run.
+
+- [ ] **One background-job runner**: the ERP worker is a hand-rolled `BackgroundService`. §13–§19
+  add about eight more jobs (expiry, follow-up digest, reminders, maintenance and leak-check
+  generators, notification sender, reorder). A small scheduler over one `jobs` table, claiming
+  with `FOR UPDATE SKIP LOCKED`, last run and outcome visible to admins, safe on several
+  instances.
+- [ ] **Generated API client**: the SPA's `core/models/*.ts` are written by hand next to the C#
+  DTOs. Generate the TypeScript types from the OpenAPI document in CI and fail on drift.
+- [ ] **End-to-end smoke suite** (Playwright, already in §8 and §9): sign in, create a quote
+  through the wizard, generate the PDF, confirm, schedule by drag, complete on a phone viewport.
+- [ ] **Migrations on deploy**: applied by hand today (§21). A migration bundle run as a
+  pre-deploy step, with the drift check already in CI, plus a rule for changes that need two
+  releases (add, backfill, then drop).
+- [ ] **Module switches**: `enabled_modules` per deployment (later per tenant, §6) hiding
+  navigation and refusing the endpoints of modules a company does not use — warehouse, F-Gas, ERP,
+  field app.
+- [ ] **Telemetry**: OpenTelemetry traces and metrics (request, EF, outbox depth and age, job
+  outcomes) to any OTLP endpoint; alerts on outbox age and failed jobs.
+- [ ] **Performance budget**: `GET /api/lookups/products` returns the whole active catalogue with
+  its tiers to every wizard; page and search it server-side past a few hundred rows. A seeded
+  load test (the demo dataset × 10) with `EXPLAIN` checked for the list queries of §8.
+- [ ] **Backups**: point-in-time recovery or scheduled dumps, storage included, and a restore
+  drill written down.
+- [ ] **Legacy import tool**: a repeatable importer (clients, catalogue, open quotes, repairs) from
+  CSV exports of a previous system, with a dry run — the first thing a new deployment asks for.
+- [ ] **More languages**: the Transloco and PDF-caption mechanism takes a third language as data;
+  a CI check that every key exists in every language file.
+- [ ] `prettier --check` in CI once the existing files are tidied (from §21).
+
+## 21. Operations checklist for a deployment
 
 Not code — settings each deployment should have. See the README's *Deployment*.
 
+- [ ] Supabase Auth **sign-ups disabled** (Dashboard → Auth → Sign In / Providers). Until §11
+  lands this is the only thing between a stranger and the Sales role.
+- [ ] Supabase **Data API** off, or `public` removed from its exposed schemas — the SPA uses
+  Supabase for Auth and Storage only.
+- [ ] Storage bucket **private** once the signed-URL release of §11 is deployed (public until
+  then, or existing links break).
 - [ ] Supabase Auth **leaked password protection** on (Dashboard → Auth → Password security).
+- [ ] `MockErp__Enabled` unset in production.
 - [ ] Render health-check path `/health/live`.
 - [ ] Optional: Sentry projects, `Sentry__Dsn` (API) and `HVAC_SENTRY_DSN` (SPA).
-- [ ] Before running more than one API instance: Redis and `Redis__ConnectionString`.
+- [ ] Before running more than one API instance: Redis and `Redis__ConnectionString`, and the
+  export-worker lock of §5.
 - [ ] Persist ASP.NET data-protection keys (today they live in the container; only matters for
   anything that relies on them across restarts).
 - [ ] Migrations are applied by hand (`dotnet ef database update` or the generated script); CI's
   deploy summary flags pending ones.
+- [ ] Database backups and a tested restore (§20).
 - [ ] Tidy the frontend files that fail `prettier --check`, then add the check to CI.
 
-## 12. Open product questions
+## 22. Open product questions
 
 Each needs a business decision, not just code.
 
-- **Fields with no home yet**: a surveyor distinct from the agent; a free-text quote memo and an
-  "additional option" memo; an ad-hoc one-off priced line (today `ManualDiscount` + `Rounding` are
-  the escape hatches for an off-catalogue amount).
+- **Multi-tenancy: yes or no, and when** (§6). It decides whether §13–§19 create their tables with
+  `tenant_id` from the start. Deciding late is the expensive answer.
+- **Who issues invoices** — the main ERP, or this product? It sets the scope of payments (§13) and
+  whether an e-invoicing hand-off is needed (§10).
+- **Do installers sign in?** §15 assumes a login per installer; the alternative is one shared
+  device login per crew, which weakens the audit trail and the F-Gas technician attribution.
+- **What counts as acceptance** (§13): a click with an e-mailed code, or a qualified electronic
+  signature through a provider?
+- **Message channels and provider** (§18): e-mail only, or SMS / a messaging app too, and on whose
+  account.
+- **Which market's F-Gas register** (§17) and which national export, if any.
+- **Reprice policy for drafts** (§12): keep the prices a draft was quoted at, or follow the
+  catalogue.
+- **Fields with no home yet**: a surveyor distinct from the agent (proposed: the survey
+  appointment of §13); a free-text quote memo and an "additional option" memo; an ad-hoc one-off
+  priced line (today `ManualDiscount` + `Rounding` are the escape hatches for an off-catalogue
+  amount) — all three proposed in §13.
 - **Client code auto-sequence**: codes are entered by hand, guarded only by a unique index (409).
   Generate the next code per series, or keep manual entry?
 - **Status transition rules are unenforced**: any quote / repair status change is allowed (the
-  history is recorded, the legality is not). Define the state machines and enforce them in the
-  workflow services, or confirm free transitions.
+  history is recorded, the legality is not). §13 proposes the quote machine; the repair machine
+  needs the same decision — confirm the ten states and their legal moves.
 - **Delete permissions**: client deletes are Admin-only and refused while the client has quotes or
-  repairs; repair and quote deletes are Sales / Admin. Confirm per deployment.
+  repairs; repair and quote deletes are Sales / Admin. §11 proposes cancelling instead of deleting
+  anything confirmed. Confirm per deployment.
 - **Placeholder prices**: ducted-accessory `service_items` are seeded with placeholder prices and the
   WEEE take-back amount is a default; a deployment sets real figures.
 - **ERP target** (§5) and the **definition of "purchase"** for statistics (§7).
