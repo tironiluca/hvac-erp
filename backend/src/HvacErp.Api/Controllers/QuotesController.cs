@@ -100,7 +100,7 @@ public class QuotesController(
         return NoContent();
     }
 
-    /// <summary>Deletes a quote and its child rows.</summary>
+    /// <summary>Deletes a quote and its child rows. 400 while it has a scheduled installation or its order is already in the ERP.</summary>
     [HttpDelete("{id:int}")]
     [Authorize(Policy = Policies.SalesOrAdmin)]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
@@ -118,7 +118,7 @@ public class QuotesController(
         return Ok(new QuotePdfResponse(url));
     }
 
-    /// <summary>Uploads a photo / document to the quote (20 MB max).</summary>
+    /// <summary>Uploads a photo or PDF to the quote (20 MB max). The type is read from the file's bytes; anything else is a 400.</summary>
     [HttpPost("{id:int}/attachments")]
     [Authorize(Policy = Policies.SalesOrAdmin)]
     [RequestSizeLimit(20_000_000)]

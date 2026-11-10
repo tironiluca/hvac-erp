@@ -238,6 +238,8 @@ public class TenantIsolationTests
 
         public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+        public Task<bool> TryDeleteByUrlAsync(string url, CancellationToken cancellationToken = default) => Task.FromResult(true);
+
         public Task<byte[]?> TryDownloadAsync(string url, CancellationToken cancellationToken = default) =>
             Task.FromResult<byte[]?>(null);
     }

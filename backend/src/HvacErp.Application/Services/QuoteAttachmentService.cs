@@ -14,8 +14,16 @@ public class QuoteAttachmentService(IAppDbContext context, IFileStorageService s
         _ = await context.Quotes.FindAsync([quoteId], cancellationToken)
             ?? throw new NotFoundException(nameof(Quote), quoteId);
 
+        // What the file is comes from its bytes; the content type the client sent is ignored.
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, cancellationToken);
+        var header = buffer.GetBuffer().AsSpan(0, (int)Math.Min(buffer.Length, UploadedFileInspector.HeaderLength));
+        var detectedType = UploadedFileInspector.DetectAttachmentType(header)
+            ?? throw new BusinessRuleException($"Only {UploadedFileInspector.AllowedAttachmentsDescription} can be attached.");
+
+        buffer.Position = 0;
         var path = $"quotes/{quoteId}/attachments/{Guid.NewGuid():N}-{SanitizeFileName(fileName)}";
-        var url = await storage.UploadAsync(path, content, contentType, cancellationToken);
+        var url = await storage.UploadAsync(path, buffer, detectedType, cancellationToken);
 
         var attachment = new QuoteAttachment
         {
@@ -36,11 +44,12 @@ public class QuoteAttachmentService(IAppDbContext context, IFileStorageService s
             .FirstOrDefaultAsync(a => a.Id == attachmentId && a.QuoteId == quoteId && a.Quote.Id == quoteId, cancellationToken)
             ?? throw new NotFoundException(nameof(QuoteAttachment), attachmentId);
 
-        // Removes the DB row only — the underlying Storage object is left in place. Not worth
-        // the coupling (parsing the stored path back out of the public URL) for an MVP; orphaned
-        // files can be swept later if storage usage becomes a concern.
         context.QuoteAttachments.Remove(attachment);
         await context.SaveChangesAsync(cancellationToken);
+
+        // The row is gone first: a file left behind is clutter, a row pointing at a deleted file is a
+        // broken link. Best effort — a storage hiccup does not fail the request.
+        await storage.TryDeleteByUrlAsync(attachment.FileUrl, cancellationToken);
     }
 
     private static string SanitizeFileName(string fileName) =>

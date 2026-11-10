@@ -54,6 +54,21 @@ public class InstallationServiceTests
         Assert.Same(dto, Assert.Single(_notifier.Changed));
     }
 
+    [Fact]
+    public async Task A_scheduled_quote_cannot_be_deleted_until_it_is_taken_off_the_calendar()
+    {
+        var quote = AddQuote(QuoteStatusCodes.Confirmed);
+        var installation = await _sut.CreateAsync(Request(quote.Id));
+        var quotes = new QuoteService(_db, new QuoteNumberingService(_db), new QuotePricingService(_db), new FakeCurrentUser());
+
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => quotes.DeleteAsync(quote.Id));
+        Assert.Contains("calendar", error.Message);
+
+        await _sut.DeleteAsync(installation.Id);
+        await quotes.DeleteAsync(quote.Id);
+        Assert.Empty(_db.Quotes);
+    }
+
     [Theory]
     [InlineData(QuoteStatusCodes.Draft)]
     [InlineData(QuoteStatusCodes.SurveyDone)]

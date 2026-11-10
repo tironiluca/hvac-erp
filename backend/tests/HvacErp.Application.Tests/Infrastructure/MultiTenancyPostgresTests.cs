@@ -10,6 +10,9 @@ using HvacErp.Infrastructure.Persistence;
 
 namespace HvacErp.Application.Tests.Infrastructure;
 
+// The only values interpolated into SQL in this file are GUIDs the tests generate themselves.
+#pragma warning disable EF1002
+
 /// <summary>
 /// What only a real Postgres can prove about multi-tenancy: the migration moves an existing
 /// single-company database and rolls back, the composite foreign keys reject cross-tenant

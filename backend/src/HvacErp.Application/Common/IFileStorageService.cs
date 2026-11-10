@@ -11,6 +11,12 @@ public interface IFileStorageService
     Task DeleteAsync(string path, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deletes the object behind a URL previously returned by <see cref="UploadAsync"/>. Best effort:
+    /// returns false, without throwing, when the URL is not one of this storage's or the delete fails.
+    /// </summary>
+    Task<bool> TryDeleteByUrlAsync(string url, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Best-effort fetch of a public object's bytes by its full URL (used to embed the brand logo
     /// in generated PDFs). Returns null on any failure — a missing/broken logo must never fail a PDF.
     /// </summary>

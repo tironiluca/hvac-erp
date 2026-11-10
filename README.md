@@ -2,7 +2,8 @@
 
 Management portal for HVAC installers — clients, quotes with a pricing engine, repairs, a real-time
 installation calendar, F-Gas records and generated PDFs — on a **C# (.NET) API + Angular** stack,
-backed by **Supabase**.
+backed by **Supabase**. One installation serves several companies (tenants), each with one or more
+stores, kept apart by the database.
 
 The product carries no customer identity: a deployment's company name, colours, logo, PDF footer,
 storage bucket and hosts are configuration and data (see [Configuration](#configuration)), never code.
@@ -26,7 +27,7 @@ Angular SPA (Vercel)  ──HTTPS──►  .NET API (Render)  ─────�
   - `HvacErp.Api` — controllers, DI composition root, JWT bearer auth, role policies, SignalR hub, health checks and request logging.
 - **Supabase** — Postgres database, Auth, and Storage (one bucket, `documents` by default, for quote/repair PDFs and photo attachments).
 
-**Auth** is delegated entirely to Supabase Auth — there's no custom password/JWT issuing code in the API. The Angular app authenticates directly against Supabase and attaches the resulting access token as a Bearer header on API calls; the API validates the Supabase-issued JWT (ES256, verified via Supabase's JWKS discovery endpoint, no shared secret) and upserts an `AppUser` profile row (role + optional installer link) keyed by the Supabase user id.
+**Auth** is delegated entirely to Supabase Auth — there's no custom password/JWT issuing code in the API. The Angular app authenticates directly against Supabase and attaches the resulting access token as a Bearer header on API calls; the API validates the Supabase-issued JWT (ES256, verified via Supabase's JWKS discovery endpoint, no shared secret) and keeps an `AppUser` profile row keyed by the Supabase user id. A profile grants nothing: what a person may do comes from their memberships (see *Tenants and stores*).
 
 **Dates** are always stored and handled in UTC. All timestamp columns are Postgres `timestamp with time zone`, and `AppDbContext.ConfigureConventions` (`AppDbContext.cs`) applies a value converter to every `DateTime`/`DateTime?` property so anything written is normalized to `Kind=Utc` — Npgsql otherwise throws or silently misbehaves on mismatched `DateTimeKind`. Use `DateTime.UtcNow` for server-generated timestamps; only convert to local time at the presentation layer. The one deliberate exception is date-only inputs (e.g. an installation day picked from a datepicker): the frontend serializes those via `toLocalDateTimeIso` (`frontend/src/app/core/utils/date.util.ts`) using the picked calendar date's local Y/M/D rather than `Date.prototype.toISOString()`, because a UTC conversion can shift a date-only value to the previous/next day depending on the browser's offset — the EF Core converter then normalizes that naive string to `Kind=Utc` on save without altering the calendar date.
 
@@ -47,7 +48,17 @@ Angular SPA (Vercel)  ──HTTPS──►  .NET API (Render)  ─────�
 
 **Real-time installation calendar** — `/installations` is a drag-and-drop scheduling calendar with a **week** view (a crew resource grid: crews as rows, days as columns; the mattina/pomeriggio bands collapse to a single "Giornata" row when that crew is booked all day) and a **month** view; both support drag-to-reschedule. It live-syncs across every connected user over a **SignalR** hub (`/hubs/installations`) — server→client fan-out of appointment changes, plus a presence roster so each viewer sees who else has the page open. A dead hub degrades to REST-only. Drags are optimistic and guarded by a per-row `ConcurrencyToken`; a racing edit surfaces as a 409 and refetches. Crews come from `Installer.Crew` (a `GET /api/lookups/installers` field); `DevDataSeeder` seeds eight of them.
 
-**Authorization** is role-based (`UserRole`: `Admin` / `Sales` / `Warehouse`, held on the `AppUser` row and added to the principal as a role claim). Every endpoint requires a signed-in user. Reads of business data are open to any role. Creating, editing and deleting clients, quotes, repairs, installations and F-Gas records requires `SalesOrAdmin`. Branding, PDF templates and deleting a client require `AdminOnly` (see `Api/Authorization/Policies.cs`). Confirming a quote is checked again in the Application layer. The same matrix is enforced in the database by **Postgres row-level security** (migration `EnableRowLevelSecurity`), so the Supabase Data API cannot bypass it. `anon` gets no access, and `authenticated` users get exactly their role's rights via `app_private.current_app_role()`. The API connects as the table owner and is unaffected.
+**Tenants and stores** — a **tenant** is a company using the product; a **store** is one of its branches. A user works in a tenant because an administrator made them a **member** of it, with a role (`Admin` / `Sales` / `Warehouse`) and either every store or a list of stores. A person can belong to several tenants, with a different role in each. Someone who signs in without a membership gets a profile and nothing else — the app shows them a "no access yet" page.
+
+- Quotes, repairs, installations, F-Gas records and ERP exports live in **one store**; quote numbers run per store. Clients, the catalogue, incentive schemes and PDF templates belong to the **tenant** and are shared by its stores. The structural lookups (statuses, VAT options, day slots, departments) and the portal branding are shared by every tenant.
+- The SPA sends the tenant and store being worked in as `X-Tenant-Id` / `X-Store-Id` (remembered per browser; a switcher appears in the toolbar when there is more than one to choose from). Both are optional — without them a user works in their first tenant, across every store they may use — and the API checks them against the memberships on every request. With several stores open and none selected, lists show all of them and creating a quote or repair asks for a store.
+- Isolation does not depend on any one layer: the database context filters every query and stamps every new row; composite foreign keys make a reference to another tenant's row impossible; and row-level security applies the same rules to the Supabase Data API. See [ARCHITECTURE.md](docs/ARCHITECTURE.md#tenancy).
+- A **platform administrator** creates tenants and edits what every tenant shares (the branding). That role opens no tenant's data: it takes a membership like anyone else's.
+- There is no screen for tenants, stores and members yet (planned, see the [roadmap](docs/ROADMAP.md)): they are rows in `tenants`, `stores`, `tenant_memberships` and `store_access`. An existing single-company database becomes tenant 1 / store 1 when the `MultiTenancy` migration runs, with every user's role carried over and every Admin made a platform administrator. On a fresh database, set `Bootstrap:AdminEmail`: the first sign-in with that e-mail becomes platform administrator and Admin of the first tenant.
+
+**Authorization** — every endpoint except the caller's own profile (`GET /api/me`) and the anonymous ones (branding for the login page, health checks) requires a membership in the tenant of the request. Reads of business data are open to any member. Creating, editing and deleting clients, quotes, repairs, installations and F-Gas records requires `SalesOrAdmin`. PDF templates and deleting a client require `AdminOnly`; the shared branding requires a platform administrator (see `Api/Authorization/Policies.cs`). Confirming a quote is checked again in the Application layer. A quote cannot be deleted while it has a scheduled installation or once its order is in the ERP. The same matrix is enforced in the database by **Postgres row-level security**, so the Supabase Data API cannot bypass it: `anon` gets no access, and an `authenticated` identity gets exactly what its memberships give — nothing, without one. The API connects as the table owner and is unaffected.
+
+**Attachments** — photos and PDFs can be attached to a quote (20 MB max). What a file is comes from its first bytes, not from the content type the browser sends; anything else is refused. Deleting an attachment deletes its file.
 
 **Observability** — `GET /health/live` (process up; use it as the Render health-check path) and `GET /health` (database + Storage readiness, 503 when either is down), both anonymous. Each request gets an `X-Correlation-Id` (taken from the SPA's header or minted). It is echoed on the response, stamped on every log line via a logging scope, and returned as `correlationId` in error responses. Outside Development, logs are one JSON object per line. Errors go to Sentry on both the API and the SPA when a DSN is configured; nothing is sent otherwise, and no PII is included.
 
@@ -61,8 +72,8 @@ backend/                         .NET 10 solution (HvacErp.sln)
   src/HvacErp.Application
   src/HvacErp.Domain
   src/HvacErp.Infrastructure
-  tests/HvacErp.Application.Tests   xUnit: pricing, numbering, workflows, validators, Postgres integration
-  tests/HvacErp.Api.Tests           xUnit + WebApplicationFactory: role matrix, health, presence, doc coverage
+  tests/HvacErp.Application.Tests   xUnit: pricing, numbering, workflows, validators, tenant isolation, Postgres integration
+  tests/HvacErp.Api.Tests           xUnit + WebApplicationFactory: role matrix, tenancy over HTTP, health, presence, doc coverage
   dotnet-tools.json              pins dotnet-ef (run `dotnet tool restore`)
 frontend/                        Angular 21 app (see frontend/README.md)
 .github/workflows/ci.yml         CI: build, tests, migration drift, Docker image, Angular build + tests
@@ -99,7 +110,7 @@ For a large, interlinked demo dataset to exercise the UI at volume — ~130 clie
 dotnet run -- seed-demo
 ```
 
-Both are idempotent — safe to re-run against a partially-seeded database. `seed-demo` runs the lookup seed first, then skips itself if it has already run (every generated client's code is `DEMO####`; remove them with `DELETE FROM clients WHERE code LIKE 'DEMO%'`, dropping the referencing `scheduled_installations` rows first).
+Both write to one tenant and its first store: the first tenant (the one the migrations create) unless `--tenant <id>` names another, e.g. `dotnet run -- seed --tenant 2` to give a new tenant its catalogue. Both are idempotent — safe to re-run against a partially-seeded database. `seed-demo` runs the lookup seed first, then skips itself if it has already run (every generated client's code is `DEMO####`; remove them with `DELETE FROM clients WHERE code LIKE 'DEMO%'`, dropping the referencing `scheduled_installations` rows first).
 
 ### Frontend
 
@@ -120,6 +131,7 @@ Serves on `http://localhost:4200` using `frontend/src/environments/environment.d
 | `Supabase:ServiceRoleKey` | .NET user-secrets / env var | Service-role key, used server-side only to call Supabase Storage's REST API |
 | `Supabase:StorageBucket` | `appsettings.json` | Storage bucket for generated PDFs and attachments (default `documents`; override per deployment with `Supabase__StorageBucket`) |
 | `Cors:AllowedOrigins` | `appsettings.json` / env var | Origins allowed to call the API (the deployed frontend URL in production) |
+| `Bootstrap:AdminEmail` | env var (`Bootstrap__AdminEmail`) | Optional. The e-mail that becomes platform administrator and Admin of the first tenant on its first sign-in. Honoured only while no platform administrator exists, so it is inert on a database migrated from a single-company deployment (its Admins were carried over) and after first use. Keep Supabase sign-ups off so nobody else can register that address |
 | `Sentry:Dsn` | env var (`Sentry__Dsn`) | Optional. Enables API error reporting to Sentry; empty = off |
 | `Erp:Provider`, `Erp:BaseUrl`, `Erp:ApiKey` | env vars (`Erp__…`) | Optional main-ERP connection: provider `None` (default, off) or `Http`; base URL of the order API; API key (a secret) sent as `X-Api-Key` |
 | `MockErp:Enabled`, `MockErp:ApiKey`, `MockErp:FailureRate` | env vars (`MockErp__…`) | Optional mock ERP at `/mock-erp` for development and demos; point `Erp:BaseUrl` at `<api>/mock-erp/api` with the same key |
@@ -136,13 +148,13 @@ No secrets or deployment values are committed: `appsettings.Development.json` / 
 
 ## Deployment
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every PR and push to `master`:
+GitHub Actions (`.github/workflows/ci.yml`) runs on every PR and push to the default branch (`main`):
 - backend build and tests, with Postgres and Redis service containers for the integration tests;
 - an EF migration-drift check;
 - a build of the Render Docker image;
 - the Angular production build and Vitest.
 
-Render and Vercel deploy `master` themselves. After a push that adds an EF migration, the CI summary flags it. Apply it to Supabase by hand:
+Render and Vercel deploy the default branch themselves. After a push that adds an EF migration, the CI summary flags it. Apply it to Supabase by hand (Postgres 15 or later; the `MultiTenancy` migration and the release that contains it go together — neither works with the other's older half):
 
 ```bash
 cd backend && dotnet tool restore
@@ -178,3 +190,5 @@ Guard-rail tests worth knowing about:
 - `AuthorizationMatrixTests` fails when a mutating endpoint ships without a role policy.
 - `XmlDocumentationCoverageTests` fails when a public type or method has no `<summary>`.
 - `RowLevelSecurityCoverageTests` fails when a table exists without RLS.
+- `TenancyCoverageTests` fails when a tenant-owned table, or a reference between two of them, is missing from a migration's lists — and so from its tenant key, composite foreign key or policies.
+- `MultiTenancyPostgresTests` (with `POSTGRES_TEST_CONNECTION`) runs the row-level-security policies as the Data API would, as members of different tenants and stores, and checks the data move and rollback of the migration.

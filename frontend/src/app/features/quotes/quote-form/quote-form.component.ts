@@ -558,9 +558,11 @@ export class QuoteFormComponent {
         this.quote.update((q) => (q ? { ...q, attachments: [...q.attachments, attachment] } : q));
         input.value = '';
       },
-      error: () => {
+      error: (err) => {
         this.uploadingAttachment.set(false);
-        this.snackbar.error(this.transloco.translate('quotes.attachmentError'));
+        // A refused file type comes back as a 400 that says what is accepted.
+        const message = err.status === 400 && err.error?.detail ? err.error.detail : this.transloco.translate('quotes.attachmentError');
+        this.snackbar.error(message);
         input.value = '';
       },
     });

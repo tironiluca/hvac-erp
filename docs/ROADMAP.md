@@ -20,6 +20,8 @@ here; the detail lives in git history, the [README](../README.md) and
 
 ## 1. Status at a glance
 
+✅ done · 🟡 partly done, the section says what is left · ❌ not started
+
 | Capability | Code | Notes |
 |---|:---:|---|
 | Auth & app shell | ✅ | Supabase Auth, roles, Material 3 shell, English / Italian UI |
@@ -34,15 +36,15 @@ here; the detail lives in git history, the [README](../README.md) and
 | In-app PDF template editor | ✅ | |
 | Free-hand floor-plan sketch | ✅ | |
 | Engineering hardening — tests, CI, authz, RLS, docs, observability, backplane, dashboard | ✅ | |
-| Company-agnostic product, English defaults | ✅ | §3 — two leftovers |
+| Company-agnostic product, English defaults | ✅ | §3 — one leftover |
 | Incentive schemes as data | ✅ | §4 — admin screen in §12 |
 | Main-ERP integration + mock ERP | ✅ | §5 — real adapter open |
-| Multi-tenant and multi-store | ❌ | §6 |
+| Multi-tenant and multi-store | 🟡 | §6 — model, isolation and switcher done; admin screens and per-tenant settings open |
 | Statistics | ❌ | §7 |
 | Proper data tables (server paging, sort, filters, export), global search | ❌ | §8 |
 | Proper README, quick start and docs | ❌ | §9 |
 | Offers / staff leave / customer portal / smaller modules | ❌ | §10 |
-| Security and access hardening | ❌ | §11 — review findings, **do first** |
+| Security and access hardening | 🟡 | §11 — access model, upload and delete guards done; private storage next |
 | Administration: users, catalogue, reference data | ❌ | §12 — today: SQL |
 | Quote lifecycle: state machine, follow-ups, acceptance, payments | ❌ | §13 |
 | One field calendar: installations, repairs, surveys, conflicts | ❌ | §14 |
@@ -58,11 +60,11 @@ here; the detail lives in git history, the [README](../README.md) and
 **Suggested order** (why this order, not just what)
 
 1. **§11 Security and access hardening** — closes exposures that exist on a live deployment today.
+   *Access model done with §6; next: private storage and signed URLs.*
 2. **§5** end-to-end check — small, proves the outbox on a real deployment.
-3. **§6 decision, then its schema steps** — §13–§19 add some twenty tables. Each one created
-   before tenancy is a table to backfill and re-secure later; each one created after is born with
-   `tenant_id` and a tenant policy. Decide now (§22); if the answer is yes, land §6 steps 1–2
-   here.
+3. **§6 multi-tenancy** — decided yes; steps 1–2 and the switcher are done, so §13–§19 create
+   their tables with `tenant_id` and a tenant policy from the start. *Next: tenant / store /
+   member administration (with §12) and per-tenant settings.*
 4. **§8 paging contract + §12 administration** — every later module needs real grids and in-app
    reference data; this also ends the "edit it in SQL" steps.
 5. **§18 notification outbox** — §13, §14, §16 and §17 all send reminders through it.
@@ -118,10 +120,14 @@ Condensed, in delivery order.
   mutation; RLS on every table; XML docs in Swagger; `/health` + `/health/live`, correlated JSON
   logs, opt-in Sentry; client / repair deletes; opt-in Redis backplane + presence; dashboard
   (`GET /api/dashboard`).
+- **Multi-tenancy foundation** (§6) — tenants, stores, memberships; `tenant_id` / `store_id` on
+  every business table; isolation enforced by the database context (query filters, write guard),
+  by composite foreign keys and by membership-based RLS; access granted only by a membership;
+  tenant / store switcher; calendar fan-out per store.
 
 ---
 
-## 3. Company-agnostic product — done, two leftovers
+## 3. Company-agnostic product — done, one leftover
 
 - [x] Company data out of code: empty default PDF footer, neutral default title "HVAC ERP" and
   colour seeds, `@example.com` seed e-mails, storage bucket from configuration (default
@@ -136,11 +142,10 @@ Condensed, in delivery order.
   became codes: `service_items.code`, `products.is_hydronic`, categories `Outdoor` / `Indoor`
   (migration `EnglishDefaultsAndStableCodes`, tested against Italian-shaped data).
 
-- [ ] Leftover from the rename: the scaffold `.http` file in `backend/src/HvacErp.Api/` still has a
-  pre-rename project name as its **file name** (text searches miss file names) and calls a
-  `/weatherforecast` endpoint that does not exist. Delete it, and add a CI check that greps file
-  *names* as well as contents for the old identifiers. The name stays in git history; rewrite
-  history only if that matters to the deployment's owner.
+- [x] Leftover from the rename: the scaffold `.http` file in `backend/src/HvacErp.Api/` carried a
+  pre-rename project name as its **file name** (text searches miss file names) — deleted. The name
+  stays in git history; rewrite history only if that matters to the deployment's owner. When
+  reviewing for identity, list file names too (`git ls-files`), not only contents.
 - [ ] English leftovers: the quote PDF is uploaded as `preventivo-{number}-….pdf`
   (`QuotePdfService`); the README's calendar paragraph quotes Italian slot labels. Name files from
   the template language.
@@ -234,13 +239,51 @@ tenants, stores and access in-app.
 **Editing (in-app)** — super-admin: create / suspend tenants. Tenant admin: company data, stores,
 users, roles and store access, per-store numbering and overrides.
 
+**As built** (the rules are in [ARCHITECTURE.md](ARCHITECTURE.md), *Tenancy*)
+- **Ownership**: `ITenantOwned` / `IStoreOwned` on the entities. Store-level: quotes, repairs,
+  installations, F-Gas records, ERP exports. Their lines carry `tenant_id` and follow the parent.
+  Clients, catalogue, incentive schemes and PDF templates are per tenant.
+- **Shared on purpose**: the six structural lookups the code branches on (statuses, VAT options,
+  day slots, departments, duct types), the portal branding, the mock ERP. Members read them, a
+  platform administrator writes them.
+- **Access**: a `tenant_memberships` row is the only grant (role per tenant; every store or a
+  list). The role left the user profile. An identity seen for the first time gets a profile and
+  nothing else. `X-Tenant-Id` / `X-Store-Id` select where a request works; a selection the user may
+  not use grants nothing rather than falling back. `Bootstrap:AdminEmail` names the first
+  administrator of a fresh deployment and is inert once one exists.
+- **Enforcement, three layers**: `AppDbContext` (global query filters, a save guard that stamps
+  and refuses, an explicit `AsSystem()` scope for workers and seeding — no tenant means nothing is
+  read and nothing can be inserted); composite foreign keys `(tenant_id, …)` mirroring every
+  reference between tenant-owned tables; RLS rewritten around memberships, tenant and store.
+- **Numbering**: client codes and the like are unique per tenant; quote numbers run per store.
+- **Platform administrator**: creates tenants and edits shared settings; it is not a pass into a
+  tenant's data — that still takes a membership.
+- **Migration `MultiTenancy`**: existing data → tenant 1 / store 1 (named after the portal
+  title); each user's role → a membership there with every store; existing Admins → platform
+  administrators. `Down` restores the old schema and policies and refuses once a second tenant
+  exists. Needs Postgres 15+.
+
 **Steps**
-- [ ] Schema: tenants, stores, memberships, store access; migration creating a default tenant and
-  store for existing data, backfilling `tenant_id` / `store_id`, then making them NOT NULL.
-- [ ] Request context + query filters + write interceptor + RLS policies + composite FKs.
-- [ ] Tenant / store switcher, admin screens (tenants, stores, users & access).
-- [ ] Per-tenant settings: branding, PDF templates, incentive schemes, ERP connection (§5).
-- [ ] Isolation test suite; then onboard a second tenant.
+- [x] Schema: tenants, stores, memberships, store access; migration creating a default tenant and
+  store for existing data and backfilling `tenant_id` / `store_id` (NOT NULL, no default).
+- [x] Request context + query filters + write guard + RLS policies + composite FKs.
+- [x] Tenant / store switcher (toolbar, remembered per browser), `GET /api/me` listing what the
+  user can switch to, a no-access page for a signed-in user with no membership.
+- [x] Isolation tests: through the services, through HTTP with real sign-in resolution, and on
+  Postgres with the policies run as the Data API runs them; model-vs-migration coverage tests so a
+  new table or reference cannot skip its tenant key, composite FK or policy.
+- [ ] **Administration** (with §12): platform admin creates / suspends tenants; tenant Admin edits
+  company data, stores, members, roles and store access. Until then these are SQL inserts.
+- [ ] **Tenant provisioning**: a new tenant starts with an empty catalogue; creating one must seed
+  what the pricing engine needs (the coded service items, extra types, default incentive schemes,
+  PDF templates). Today: `dotnet run -- seed --tenant <id>`.
+- [ ] **Per-tenant settings**: branding (the login page is anonymous, so the tenant has to come
+  from the host name — §22), ERP connection per tenant (the worker already runs across tenants),
+  per-store overrides of branding / PDF templates.
+- [ ] Store shown as a column / filter in the lists when the user works in several (§8); installers
+  and crews assignable to a store (today they are tenant-wide).
+- [ ] Cache sign-in resolution for a few seconds per user (two indexed queries per request today).
+- [ ] Onboard a second tenant on a deployment.
 
 ## 7. Statistics
 
@@ -357,9 +400,8 @@ in CI.
 
 **Steps**
 - [ ] Demo seed + `docker-compose.yml` quick start, verified from a clean clone.
-- [ ] README rewrite with features, concepts, deploy-your-own. Fix while there: the README says CI
-  and the hosts act on `master` (the default branch is `main`), tells the operator to create a
-  **public** bucket (§11), and documents attachment deletion as removing the file (it does not).
+- [ ] README rewrite with features, concepts, deploy-your-own. Fix while there: the README tells
+  the operator to create a **public** bucket (goes with the private-storage step of §11).
 - [ ] Screenshot script and images; badges; link check in CI.
 - [ ] `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`.
 
@@ -390,23 +432,22 @@ Smaller than §11–§19 or dependent on them. Roughly in priority order.
 Found by reading the code against a live-deployment threat model. Each item names where it lives.
 
 **Findings**
-- **Anyone who can sign in becomes Sales.** `SupabaseUserClaimsTransformation` inserts an `AppUser`
-  with role `Sales` for every valid Supabase token it has not seen, and every RLS read policy is
-  `USING (true)` for `authenticated`. Whether strangers can obtain a token depends on one dashboard
-  setting — "allow new users to sign up" — that the repository neither sets nor documents. With it
-  on, the publishable key in the SPA bundle is enough to register, read every table through the
-  Data API and write through the API. There is no user screen: roles change in SQL.
+- ✅ *Fixed with §6.* **Anyone who could sign in became Sales.** Sign-in inserted an `AppUser`
+  with role `Sales` for every valid Supabase token it had not seen, and every RLS read policy was
+  `USING (true)` for `authenticated`. With sign-ups enabled on the Supabase project, the
+  publishable key in the SPA bundle was enough to register, read every table through the Data API
+  and write through the API. Now a new identity gets a profile and no access, and every policy
+  asks for a membership.
 - **Customer documents are public and enumerable.** `SupabaseStorageService` returns
   `/object/public/…` URLs and the README asks for a public bucket. A quote PDF lives at
   `quotes/{id}/preventivo-{number}-v{version}r{revision}.pdf` — sequential ids, no secret — and
   carries name, address, tax code and prices. Work orders and repairs follow the same pattern.
-- **Uploads are not checked.** Quote attachments accept any content type up to 20 MB and store the
-  client-supplied type (`QuotesController.UploadAttachment`); branding uploads already whitelist
-  theirs. Deleting an attachment removes the row and leaves the object
-  (`QuoteAttachmentService.DeleteAsync`).
-- **A confirmed quote can be deleted.** `QuoteService.DeleteAsync` has no status guard; the ERP
-  export row cascades away with it, so an order the ERP holds loses its trace here. (A scheduled
-  installation blocks the delete only through the foreign key, as a generic 400.)
+- ✅ *Fixed.* **Uploads were not checked.** Quote attachments accepted any content type up to
+  20 MB and stored the client-supplied type; deleting an attachment removed the row and left the
+  file. Now the type is read from the bytes (photos and PDF only) and the file goes with the row.
+- ✅ *Fixed.* **A quote could be deleted from under its order.** `QuoteService.DeleteAsync` had no
+  guard; the ERP export row cascaded away with the quote, so an order the ERP held lost its trace
+  here, and a scheduled installation blocked the delete only as a generic foreign-key 400.
 - **F-Gas records can be deleted** (`DELETE /api/fgas-records/{id}`) although they are compliance
   evidence; §2 describes the API as append-only.
 - **No rate limiting, HSTS or forwarded-header handling** in `Program.cs`; the anonymous endpoints
@@ -448,14 +489,24 @@ Found by reading the code against a live-deployment threat model. Each item name
 **Steps**
 - [ ] §21 today, no code: sign-ups off; Data API off or `public` removed from its exposed schemas
   (the SPA uses Supabase for Auth and Storage only).
-- [ ] User status, no auto-provisioning, bootstrap admin, RLS read policies require a role;
-  migration + RLS test + API tests for the unknown-identity path.
+- [x] Access is granted, never assumed (done as part of §6, with memberships in place of a status
+  column): no auto-provisioning, `Bootstrap:AdminEmail`, a member-only default policy, `users.is_active`
+  to disable a person, RLS policies that give nothing without a membership; tests for the
+  unknown-identity path at every layer.
+- [ ] Invitations by e-mail, "forgot password", optional TOTP (with the users screen of §12).
 - [ ] Private bucket, stored paths, signed-URL endpoints, SPA and PDF generators updated, data
   migration. **Needs a deployment step** (bucket flipped to private after the release).
-- [ ] Upload whitelist and storage clean-up; delete guards on quotes; F-Gas delete removed.
-- [ ] Rate limiter, HSTS, forwarded headers, mock-ERP production guard.
+- [x] Attachment uploads: the type is read from the file's bytes (photos and PDF only), the
+  client's content type is ignored; deleting an attachment deletes its file.
+- [x] Quote delete guards: refused while an installation is scheduled or once the order is in the
+  ERP. A draft, or a confirmed quote nothing depends on, can still be deleted until §13 brings
+  *Cancelled*.
+- [ ] Still open from the two above: F-Gas delete (goes with the void entry of §17); deleting a
+  quote leaves its PDF and attachment files in storage.
+- [ ] Rate limiter, HSTS, forwarded headers, mock-ERP production guard. Needs the deployment's
+  proxy topology: a limiter keyed on the wrong client address throttles everyone at once.
 - [ ] Audit entries + interceptor + admin viewer; client data export and anonymise.
-- [ ] Quote number sequence; concurrency test in the Postgres suite.
+- [ ] Quote number sequence per store; concurrency test in the Postgres suite.
 - [ ] Dependency and secret scanning in CI (`dotnet list package --vulnerable`, `npm audit`,
   secret scan), failing on high severity.
 
@@ -469,7 +520,8 @@ users; `LookupsController` is read-only and `seed` is the only writer. RLS alrea
 tables to Admin writes, so the screens add no new policy shape.
 
 **Screens** (all `AdminOnly`, all on the §8 data table)
-- **Users and roles** (§11): invite, role, linked installer / operator, disable, last sign-in.
+- **Members** (§6, §11): the tenant's members — invite, role, stores, linked installer, disable;
+  for a platform administrator, tenants and their stores.
 - **Catalogue**: products (every field of `Product`, photo, active flag), price lists with their
   discount ladder, service items (engine-read `code` rows are protected from deletion and
   re-coding), extra types.
@@ -494,7 +546,7 @@ tables to Admin writes, so the screens add no new policy shape.
   message is enough).
 
 **Steps**
-- [ ] Users and roles screen (with §11).
+- [ ] Tenants, stores and members screens (with §6 and §11).
 - [ ] Generic lookup editor + installers / crews / operators.
 - [ ] Products, price lists and tiers, service items, extra types; price history.
 - [ ] Incentive schemes editor.
@@ -804,8 +856,15 @@ Not features; they keep the features above cheap to build and safe to run.
 
 Not code — settings each deployment should have. See the README's *Deployment*.
 
-- [ ] Supabase Auth **sign-ups disabled** (Dashboard → Auth → Sign In / Providers). Until §11
-  lands this is the only thing between a stranger and the Sales role.
+- [ ] **Apply the `MultiTenancy` migration together with the release that contains it** — the new
+  code does not run against the old schema, nor the old code against the new. Postgres 15 or later.
+  After it: existing users keep their role as members of tenant 1; existing Admins are also
+  platform administrators.
+- [ ] A fresh deployment: set `Bootstrap__AdminEmail` to the first administrator's e-mail before
+  they sign in; it does nothing once a platform administrator exists.
+- [ ] Supabase Auth **sign-ups disabled** (Dashboard → Auth → Sign In / Providers). A stranger who
+  signs up no longer gets any access, but there is no reason to let them create accounts — and the
+  bootstrap e-mail must not be registrable by someone else.
 - [ ] Supabase **Data API** off, or `public` removed from its exposed schemas — the SPA uses
   Supabase for Auth and Storage only.
 - [ ] Storage bucket **private** once the signed-URL release of §11 is deployed (public until
@@ -827,8 +886,16 @@ Not code — settings each deployment should have. See the README's *Deployment*
 
 Each needs a business decision, not just code.
 
-- **Multi-tenancy: yes or no, and when** (§6). It decides whether §13–§19 create their tables with
-  `tenant_id` from the start. Deciding late is the expensive answer.
+- ~~Multi-tenancy: yes or no~~ — **decided: yes**, built in §6. What it left open:
+  - **How the login page finds its tenant** for per-tenant branding: by host name (a domain or
+    sub-domain per tenant), or one shared look for every tenant?
+  - **Shared lookups**: statuses, VAT options, day slots and departments are one set for every
+    tenant. Is that enough, or does a tenant need its own labels, colours or VAT set (another
+    country)?
+  - **Support access**: a platform administrator cannot see a tenant's data without a membership.
+    Keep it that way, or add an audited "act as" for support?
+  - **Clients across stores**: clients belong to the tenant and every store sees them. Confirm, or
+    restrict a store to the clients it created.
 - **Who issues invoices** — the main ERP, or this product? It sets the scope of payments (§13) and
   whether an e-invoicing hand-off is needed (§10).
 - **Do installers sign in?** §15 assumes a login per installer; the alternative is one shared

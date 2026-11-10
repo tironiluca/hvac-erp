@@ -148,6 +148,19 @@ public class QuoteService(
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         var quote = await GetTrackedAsync(id, cancellationToken);
+
+        // A quote other records depend on is not deleted from under them.
+        if (await context.ScheduledInstallations.AnyAsync(s => s.QuoteId == id, cancellationToken))
+        {
+            throw new BusinessRuleException("This quote has a scheduled installation — remove it from the calendar first.");
+        }
+
+        // Deleting would cascade to the export row and lose the only trace of an order the ERP holds.
+        if (await context.ErpOrderExports.AnyAsync(e => e.QuoteId == id && e.Status == ErpExportStatuses.Sent, cancellationToken))
+        {
+            throw new BusinessRuleException("This quote's order is already in the ERP, so it can no longer be deleted.");
+        }
+
         context.Quotes.Remove(quote);
         await context.SaveChangesAsync(cancellationToken);
     }

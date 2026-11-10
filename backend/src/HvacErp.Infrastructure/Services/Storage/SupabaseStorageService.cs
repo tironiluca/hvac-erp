@@ -44,6 +44,25 @@ public class SupabaseStorageService : IFileStorageService
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<bool> TryDeleteByUrlAsync(string url, CancellationToken cancellationToken = default)
+    {
+        var prefix = publicBaseUrl + "/";
+        if (!url.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var response = await http.DeleteAsync($"storage/v1/object/{bucket}/{url[prefix.Length..]}", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return false;
+        }
+    }
+
     public async Task<byte[]?> TryDownloadAsync(string url, CancellationToken cancellationToken = default)
     {
         try

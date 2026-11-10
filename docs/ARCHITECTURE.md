@@ -9,9 +9,9 @@ follows and the **design decisions** behind the data model. Progress and plans a
 | Project | Responsibility | Depends on |
 |---|---|---|
 | `HvacErp.Domain` | Entities, enums, lookup-code constants. No framework dependencies. | — |
-| `HvacErp.Application` | DTOs, service interfaces + implementations, business logic (pricing engine, quote numbering, workflow transitions, incentive schemes, ERP export), PDF template model, ports (`ICurrentUser`, `IInstallationCalendarNotifier`, `IFileStorageService`, `IErpConnector`, document generators). | Domain |
-| `HvacErp.Infrastructure` | EF Core (Npgsql, snake_case) + configurations + migrations + seeders, Supabase Storage client, QuestPDF generators, Supabase JWT claims transformation, ERP connectors and worker, mock ERP. Implements Application ports. | Application, Domain |
-| `HvacErp.Api` | Controllers, DI composition root, JWT bearer auth, role policies, SignalR hub, `ApiExceptionHandler`, `CurrentUser`. | all of the above |
+| `HvacErp.Application` | DTOs, service interfaces + implementations, business logic (pricing engine, quote numbering, workflow transitions, incentive schemes, ERP export), PDF template model, ports (`ICurrentUser`, `ITenantContext`, `IInstallationCalendarNotifier`, `IFileStorageService`, `IErpConnector`, document generators). | Domain |
+| `HvacErp.Infrastructure` | EF Core (Npgsql, snake_case) + configurations + migrations + seeders, tenant filters and write guard (`AppDbContext`), sign-in resolution (`TenantAccessResolver`), Supabase Storage client, QuestPDF generators, ERP connectors and worker, mock ERP. Implements Application ports. | Application, Domain |
+| `HvacErp.Api` | Controllers, DI composition root, JWT bearer auth, role policies, SignalR hub, `ApiExceptionHandler`, `CurrentUser`, `RequestTenantContext`. | all of the above |
 
 Frontend (`frontend/`, Angular 21): standalone components, SCSS, no SSR, zone-based change detection.
 `core/` (guards, interceptors, models, services, shell, utils, dashboard), `features/<module>/`
@@ -19,6 +19,66 @@ Frontend (`frontend/`, Angular 21): standalone components, SCSS, no SSR, zone-ba
 section and the floor-plan sketch). Transloco i18n, English default, Italian available; labels of
 server-driven options are keyed by lookup `code`. The Material 3 theme is generated at runtime from
 the branding seeds.
+
+## Tenancy
+
+One installation serves several companies (**tenants**), each with one or more **stores**. A user
+works in a tenant because a `tenant_memberships` row says so — with a role, and either every store
+or a list of them. Nothing else grants access: signing in creates a profile and no more.
+
+**What is owned by whom**
+
+| Ownership | Marker | Tables |
+|---|---|---|
+| A store of a tenant | `IStoreOwned` (`tenant_id` + `store_id`) | quotes, repairs, scheduled installations, F-Gas records, ERP exports |
+| A tenant | `ITenantOwned` (`tenant_id`) | clients, the catalogue (products, price lists, service items, extra types, installers, operators…), incentive schemes, PDF templates, and every line / history row of a store record |
+| Everyone | — | the six structural lookups (statuses, VAT options, day slots, departments, duct types), portal branding, `users`, `tenants` |
+
+**The request** carries `X-Tenant-Id` and `X-Store-Id` (query `tenant` / `store` for SignalR). Both
+are optional: without them a user works in their first tenant across every store they may use.
+`TenantAccessResolver` checks the selection against the memberships and writes the answer as
+claims; a selection that cannot be honoured grants *nothing* — it never falls back to another
+tenant. Roles are per tenant, so the role claim is the role in the tenant of this request.
+
+**Three layers enforce it**, each sufficient on its own:
+
+1. **`AppDbContext`** — a global query filter on every tenant-owned entity (tenant, and for
+   store-owned ones the readable stores), and a save guard that stamps `tenant_id` / `store_id` on
+   new rows and refuses a write outside the caller's tenant and stores. A context with no tenant
+   reads no tenant-owned row and can insert none.
+2. **Composite foreign keys** — every reference between two tenant-owned tables exists twice: the
+   ordinary key EF manages, and `(tenant_id, x_id) → parent (tenant_id, id)` with the same delete
+   action. A row cannot point at another tenant's row even if the application is wrong.
+3. **Row-level security** — policies built on `app_private.tenant_role(tenant_id)` and
+   `app_private.can_access_store(tenant_id, store_id)`; lines follow their parent row.
+
+**Rules**
+
+- **A new tenant-owned table**: implement `ITenantOwned` or `IStoreOwned` (the filter and the stamp
+  follow from the interface), and in its migration add the `tenant_id` reference, the composite
+  keys and the policies with the `TenancySql` helper. `TenancyCoverageTests` fails until the table
+  and each of its references are listed.
+- **Never filter or stamp by hand.** No `Where(x => x.TenantId == …)` and no `TenantId = …` in a
+  service: the context does both. The exception is a record that must live in its *parent's* store
+  rather than the caller's selected one (an installation, an F-Gas record, an ERP export): set
+  `StoreId` from the parent.
+- **Reach lines through their parent.** Line tables are filtered by tenant only; the store rule
+  lives on the parent. Query `context.Quotes.Include(...)`, or put the parent in the predicate
+  (`a.Quote.Id == quoteId`), never a bare `context.QuoteAttachments.Where(a => a.Id == …)`.
+- **Code that needs the store** reads `context.Tenant` (`RequireStoreId()` gives the 400 "select a
+  store" when a user works in several and chose none). Quote numbers run per store.
+- **`IgnoreQueryFilters()` needs a replacement predicate** in the same query (the caller's user id,
+  for "my memberships") and a comment saying why.
+- **`AsSystem()`** is for code with no caller behind it — the outbox worker, sign-in resolution,
+  seeding. It lives on `AppDbContext`, not on `IAppDbContext`, so Application services cannot
+  reach it. Inside it nothing is stamped: every row written must name its tenant.
+- **Shared tables stay shared deliberately.** A table that is not tenant-owned must be listed as
+  such in a migration (`PlatformTables`), and only a platform administrator writes it. A platform
+  administrator manages tenants and shared settings; reading a tenant's data still takes a
+  membership.
+- **SignalR**: send to `CalendarGroups.Store(...)` / `.Tenant(...)`, never to `Clients.All`.
+- **Tests**: `TestDb.Create()` works as tenant 1 / store 1; pass a `FixedTenantContext` and a shared
+  database name to look at the same data as another tenant.
 
 ## Rules for all new code
 
@@ -45,12 +105,13 @@ the branding seeds.
   check / foreign-key violations → 400. Throw the domain exception; don't set status codes in
   services.
 - **Every mutating endpoint declares a role policy** (`Api/Authorization/Policies.cs`): business writes
-  `SalesOrAdmin`, settings and client deletes `AdminOnly`; reads need only sign-in (a fallback policy
-  requires it everywhere). Re-check role-dependent sub-operations in Application with
+  `SalesOrAdmin`, a tenant's settings and client deletes `AdminOnly`, settings shared by every
+  tenant `PlatformAdmin`; reads need a membership (the default and fallback policy — being signed
+  in is not enough). Re-check role-dependent sub-operations in Application with
   `ICurrentUser.EnsureInRole`. `AuthorizationMatrixTests` fails on a mutating action without a policy.
 - **Every new table ships with RLS in its own migration** (`ENABLE ROW LEVEL SECURITY` + policies
-  mirroring the API rule via `app_private.current_app_role()`, using the `RowLevelSecuritySql`
-  helper), and is added to the RLS coverage test. Supabase's Data API exposes `public` with the
+  mirroring the API rule, built with the `TenancySql` helper — see *Tenancy*), and is added to the
+  RLS coverage test. Supabase's Data API exposes `public` with the
   publishable key that ships in the SPA bundle, so a table without RLS is world-readable.
 - **Migrations**: one per change, generated with `dotnet ef migrations add`; data moves in the same
   migration with a working `Down`; a Postgres test for any migration that transforms data. CI fails
@@ -64,6 +125,8 @@ the branding seeds.
 - **External calls go through ports and outboxes.** Anything sent to another system (ERP today)
   is written to an outbox table in the same transaction as the business change and sent by a worker
   with retries; the business flow never waits on the remote system.
+- **Uploads are identified by their bytes** (`UploadedFileInspector`), never by the content type
+  the client sent; a storage object is deleted with the row that points at it.
 - **Tests with every change**: Application tests for logic, API tests for endpoints and policies,
   Vitest for frontend services and components.
 
@@ -76,6 +139,11 @@ the branding seeds.
 - **Ducted outlets are child rows** (`DuctedUnitOutlet`: position, system type, vent count); pricing is
   summed per outlet.
 - **Crew assignment is many-to-many** (`InstallationInstaller`); crews come from `Installer.Crew`.
+- **Roles belong to memberships, not to users.** `tenant_memberships.role` is the role in that
+  tenant; `users` only identifies the person (plus `is_active` and `is_platform_admin`).
+- **Tenant isolation is not left to EF relationships.** The composite keys are plain SQL next to
+  EF's own, because EF cannot express `ON DELETE SET NULL (column)` and a composite `SET NULL`
+  would try to null the tenant.
 - **Status is an append-only event history** (`QuoteStatusEvent`, `RepairStatusEvent`) with a
   denormalised current status on the parent.
 - **`FGasRecord` parent FKs cascade** — a record is meaningless without its parent, and the XOR

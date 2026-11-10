@@ -101,6 +101,21 @@ public class ErpExportServiceTests
     }
 
     [Fact]
+    public async Task A_quote_whose_order_is_in_the_erp_can_no_longer_be_deleted()
+    {
+        var pending = await CreateQuoteAsync(confirm: true);
+        await _quotes.DeleteAsync(pending); // queued but never sent: nothing outside knows about it
+        Assert.Empty(_db.ErpOrderExports);
+
+        var sent = await CreateQuoteAsync(confirm: true);
+        await _erp.ProcessDueAsync();
+
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => _quotes.DeleteAsync(sent));
+        Assert.Contains("ERP", error.Message);
+        Assert.Equal(ErpExportStatuses.Sent, (await _db.ErpOrderExports.SingleAsync()).Status);
+    }
+
+    [Fact]
     public async Task A_temporary_failure_is_retried_with_back_off_until_it_succeeds()
     {
         var quoteId = await CreateQuoteAsync(confirm: true);

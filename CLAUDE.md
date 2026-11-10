@@ -40,8 +40,12 @@ npm run build              # production build (needs the HVAC_* variables)
 
 - Never commit a customer's name, address, host, project id, key or data. Deployment specifics are
   environment variables and database rows.
-- A new table: migration + RLS policies (`RowLevelSecuritySql`) + RLS coverage test entry.
-- A new mutating endpoint: a role policy, XML docs, an API test.
+- A new table: decide who owns it — a store (`IStoreOwned`), a tenant (`ITenantOwned`) or everyone —
+  then migration + tenant reference, composite keys and RLS policies (`TenancySql`) + coverage test
+  entries. Never filter or stamp `TenantId` / `StoreId` by hand: `AppDbContext` does both. See
+  *Tenancy* in `docs/ARCHITECTURE.md`.
+- A new mutating endpoint: a role policy, XML docs, an API test. Reach line tables through their
+  parent so the store filter applies.
 - A pricing change: Application tests plus the frontend preview (`quote-price-estimate.ts`) kept in
   step with `QuotePricingService`.
 - Update the README and `docs/ROADMAP.md` in the same change when behaviour or status changes.
