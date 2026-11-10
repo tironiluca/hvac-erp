@@ -35,15 +35,29 @@ public class QuotePdfService(
             PdfDocumentType.Quote, context, templates, storage, cancellationToken);
 
         var pdfBytes = generator.Generate(quote, vatLabel, renderContext);
-        var fileName = $"preventivo-{quote.Number}-v{quote.Version}r{quote.Revision}.pdf";
+        var fileName = $"quote-{quote.Number}-v{quote.Version}r{quote.Revision}.pdf";
         var path = $"quotes/{quote.Id}/{fileName}";
 
         using var stream = new MemoryStream(pdfBytes);
-        var url = await storage.UploadAsync(path, stream, "application/pdf", cancellationToken);
-
-        quote.PdfUrl = url;
+        // A PDF generated under an older file name is replaced, not left beside the new one.
+        var previous = quote.PdfPath;
+        quote.PdfPath = await storage.UploadAsync(path, stream, "application/pdf", cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
+        if (previous is not null && previous != quote.PdfPath)
+        {
+            await storage.TryDeleteAsync(previous, cancellationToken);
+        }
 
-        return url;
+        return await storage.CreateSignedUrlAsync(quote.PdfPath, DocumentLinks.Lifetime, cancellationToken);
+    }
+
+    public async Task<string> GetUrlAsync(int quoteId, CancellationToken cancellationToken = default)
+    {
+        // Through the filtered set: only someone who can read the record gets a link to its PDF.
+        var path = await context.Quotes.Where(x => x.Id == quoteId).Select(x => new { x.PdfPath }).FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(Quote), quoteId);
+
+        return await storage.CreateSignedUrlAsync(
+            path.PdfPath ?? throw new NotFoundException("PDF", quoteId), DocumentLinks.Lifetime, cancellationToken);
     }
 }

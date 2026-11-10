@@ -54,6 +54,7 @@ import {
 } from '../../../core/models/quote.model';
 import { FloorPlanSketch } from '../../../core/models/floor-plan-sketch.model';
 import { PriceEstimate, defaultQuoteAmount, estimateQuotePrice } from '../quote-price-estimate';
+import { openDocument } from '../../../core/utils/open-document';
 
 type UnitGroup = FormGroup<{
   productId: FormControl<number | null>;
@@ -537,6 +538,23 @@ export class QuoteFormComponent {
         this.snackbar.error(this.transloco.translate('quotes.pdfError'));
       },
     });
+  }
+
+  /** Opens the stored PDF through a link issued for this click (it expires after a few minutes). */
+  protected viewPdf(): void {
+    const id = this.quoteId();
+    if (!id) return;
+    openDocument(this.quotesService.getPdfUrl(id), () =>
+      this.snackbar.error(this.transloco.translate('common.documentError')),
+    );
+  }
+
+  protected viewAttachment(attachment: QuoteAttachment): void {
+    const id = this.quoteId();
+    if (!id) return;
+    openDocument(this.quotesService.getAttachmentUrl(id, attachment.id), () =>
+      this.snackbar.error(this.transloco.translate('common.documentError')),
+    );
   }
 
   protected newRevisionForClient(): void {

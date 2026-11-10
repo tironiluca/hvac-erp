@@ -455,11 +455,11 @@
             }
             {{ 'quotes.generatePdf' | transloco }}
           </button>
-          @if (q.pdfUrl) {
-            <a mat-stroked-button [href]="q.pdfUrl" target="_blank" rel="noopener">
+          @if (q.hasPdf) {
+            <button mat-stroked-button type="button" (click)="viewPdf()">
               <mat-icon>open_in_new</mat-icon>
               {{ 'quotes.viewPdf' | transloco }}
-            </a>
+            </button>
           }
           <button mat-stroked-button color="warn" type="button" (click)="deleteQuote()">
             <mat-icon>delete</mat-icon>
@@ -502,7 +502,9 @@
         <div class="attachments">
           @for (attachment of q.attachments; track attachment.id) {
             <div class="attachments__item">
-              <a [href]="attachment.fileUrl" target="_blank" rel="noopener">{{ attachment.fileName }}</a>
+              <button type="button" class="attachments__link" (click)="viewAttachment(attachment)">
+                {{ attachment.fileName }}
+              </button>
               <span class="attachments__date">{{ attachment.uploadedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
               <button mat-icon-button type="button" (click)="removeAttachment(attachment)">
                 <mat-icon>delete</mat-icon>

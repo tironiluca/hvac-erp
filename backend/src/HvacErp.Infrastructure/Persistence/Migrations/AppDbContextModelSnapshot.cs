@@ -1249,9 +1249,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("parent_quote_id");
 
-                    b.Property<string>("PdfUrl")
+                    b.Property<string>("PdfPath")
                         .HasColumnType("text")
-                        .HasColumnName("pdf_url");
+                        .HasColumnName("pdf_path");
 
                     b.Property<bool>("Predisposed")
                         .HasColumnType("boolean")
@@ -1329,11 +1329,11 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("file_name");
 
-                    b.Property<string>("FileUrl")
+                    b.Property<string>("FilePath")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
-                        .HasColumnName("file_url");
+                        .HasColumnName("file_path");
 
                     b.Property<int>("QuoteId")
                         .HasColumnType("integer")
@@ -1718,9 +1718,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("installation_date");
 
-                    b.Property<string>("PdfUrl")
+                    b.Property<string>("PdfPath")
                         .HasColumnType("text")
-                        .HasColumnName("pdf_url");
+                        .HasColumnName("pdf_path");
 
                     b.Property<bool>("Predisposed")
                         .HasColumnType("boolean")
@@ -2000,9 +2000,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("quote_id");
 
-                    b.Property<string>("ReportPdfUrl")
+                    b.Property<string>("ReportPdfPath")
                         .HasColumnType("text")
-                        .HasColumnName("report_pdf_url");
+                        .HasColumnName("report_pdf_path");
 
                     b.Property<string>("Slot")
                         .IsRequired()

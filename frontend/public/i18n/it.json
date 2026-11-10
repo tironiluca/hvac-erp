@@ -8,7 +8,8 @@
     "delete": "Elimina",
     "next": "Avanti",
     "back": "Indietro",
-    "forbidden": "Il tuo ruolo non consente questa operazione."
+    "forbidden": "Il tuo ruolo non consente questa operazione.",
+    "documentError": "Impossibile aprire il documento."
   },
   "auth": {
     "signInSubtitle": "Accedi al tuo account",

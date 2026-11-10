@@ -37,26 +37,18 @@ public static class DemoDataSeeder
 
     // Public base URL of the demo PDFs / photos (`<storage>/demo`), set per run from configuration
     // so no deployment's storage host is baked into the seed. A one-shot CLI command, like Rng.
-    private static string DemoAssetBaseUrl = "https://example.com/demo";
+    // Storage folder of the demo files. The rows only point at them: put files there to make the links work.
+    private const string DemoAssetFolder = "demo";
 
     // The incentive schemes by code, loaded per run (seeded by DevDataSeeder); a one-shot CLI command, like Rng.
     private static Dictionary<string, IncentiveScheme> Schemes = [];
 
     /// <summary>Adds the demo dataset; safe to run repeatedly.</summary>
     /// <param name="context">The database to seed.</param>
-    /// <param name="assetBaseUrl">
-    /// Public URL the demo attachments are linked under (e.g. the storage bucket's <c>demo/</c> folder);
-    /// null keeps a neutral placeholder.
-    /// </param>
     /// <param name="cancellationToken">Cancels the seed.</param>
     public static async Task SeedAsync(
-        AppDbContext context, string? assetBaseUrl = null, CancellationToken cancellationToken = default)
+        AppDbContext context, CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(assetBaseUrl))
-        {
-            DemoAssetBaseUrl = assetBaseUrl.TrimEnd('/');
-        }
-
         await DevDataSeeder.SeedAsync(context, cancellationToken);
 
         if (await context.Clients.AnyAsync(c => c.Code.StartsWith("DEMO"), cancellationToken))
@@ -567,18 +559,18 @@ public static class DemoDataSeeder
                 quote.Attachments.Add(new QuoteAttachment
                 {
                     FileName = $"foto-sopralluogo-{a + 1}.jpg",
-                    FileUrl = $"{DemoAssetBaseUrl}/quote-{number}/foto-{a + 1}.jpg",
+                    FilePath = $"{DemoAssetFolder}/quote-{number}/foto-{a + 1}.jpg",
                     UploadedAt = createdAt.AddDays(Rng.Next(0, 10)),
                 });
             }
         }
         if (Chance(0.35))
         {
-            quote.PdfUrl = $"{DemoAssetBaseUrl}/quote-{number}/preventivo.pdf";
+            quote.PdfPath = $"{DemoAssetFolder}/quote-{number}/preventivo.pdf";
         }
         if (Chance(0.2))
         {
-            quote.FloorPlanImageUrl = $"{DemoAssetBaseUrl}/quote-{number}/planimetria.png";
+            quote.FloorPlanImageUrl = $"{DemoAssetFolder}/quote-{number}/planimetria.png";
         }
 
         return quote;
@@ -723,8 +715,8 @@ public static class DemoDataSeeder
             Rounding = Chance(0.4) ? Round2(Rng.Next(0, 5) * 2m) : 0m,
             InsertedAt = insertedAt,
             InstallationDate = hasDate ? insertedAt.AddDays(Rng.Next(3, 32)) : null,
-            PdfUrl = Chance(0.2)
-                ? $"{DemoAssetBaseUrl}/repair/rapporto.pdf"
+            PdfPath = Chance(0.2)
+                ? $"{DemoAssetFolder}/repair/rapporto.pdf"
                 : null,
         };
 
@@ -805,8 +797,8 @@ public static class DemoDataSeeder
                 Date = date,
                 Slot = slot,
                 Notes = Pick(InstallationNotes),
-                ReportPdfUrl = inPast && Chance(0.5)
-                    ? $"{DemoAssetBaseUrl}/installation/rapporto-intervento.pdf"
+                ReportPdfPath = inPast && Chance(0.5)
+                    ? $"{DemoAssetFolder}/installation/rapporto-intervento.pdf"
                     : null,
                 UpdatedAt = Chance(0.3) ? date.AddDays(-Rng.Next(1, 7)) : null,
                 UpdatedBy = Chance(0.3) ? "planning@example.com" : null,
@@ -879,8 +871,8 @@ public static class DemoDataSeeder
             Date = date,
             Slot = slot,
             Notes = Pick(InstallationNotes),
-            ReportPdfUrl = inPast && Chance(0.5)
-                ? $"{DemoAssetBaseUrl}/installation/rapporto-intervento.pdf"
+            ReportPdfPath = inPast && Chance(0.5)
+                ? $"{DemoAssetFolder}/installation/rapporto-intervento.pdf"
                 : null,
             UpdatedAt = Chance(0.25) ? date.AddDays(-Rng.Next(1, 7)) : null,
             UpdatedBy = Chance(0.25) ? "planning@example.com" : null,

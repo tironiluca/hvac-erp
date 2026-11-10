@@ -109,7 +109,7 @@ public class QuotesController(
         return NoContent();
     }
 
-    /// <summary>Renders the customer quote PDF with the active template and stores it; returns its public URL.</summary>
+    /// <summary>Renders the customer quote PDF with the active template and stores it; returns a link to it that works for a few minutes.</summary>
     [HttpPost("{id:int}/pdf")]
     [Authorize(Policy = Policies.SalesOrAdmin)]
     public async Task<ActionResult<QuotePdfResponse>> GeneratePdf(int id, CancellationToken cancellationToken)
@@ -117,6 +117,16 @@ public class QuotesController(
         var url = await pdf.GenerateAndStoreAsync(id, cancellationToken);
         return Ok(new QuotePdfResponse(url));
     }
+
+    /// <summary>A link to the quote's generated PDF that works for a few minutes. 404 when none has been generated.</summary>
+    [HttpGet("{id:int}/pdf-url")]
+    public async Task<ActionResult<DocumentUrlDto>> GetPdfUrl(int id, CancellationToken cancellationToken) =>
+        Ok(new DocumentUrlDto(await pdf.GetUrlAsync(id, cancellationToken)));
+
+    /// <summary>A link to an attachment's file that works for a few minutes.</summary>
+    [HttpGet("{id:int}/attachments/{attachmentId:int}/url")]
+    public async Task<ActionResult<DocumentUrlDto>> GetAttachmentUrl(int id, int attachmentId, CancellationToken cancellationToken) =>
+        Ok(new DocumentUrlDto(await attachments.GetUrlAsync(id, attachmentId, cancellationToken)));
 
     /// <summary>Uploads a photo or PDF to the quote (20 MB max). The type is read from the file's bytes; anything else is a 400.</summary>
     [HttpPost("{id:int}/attachments")]

@@ -61,7 +61,12 @@ public class RepairsController(IRepairService repairs, IRepairPdfService pdf) : 
         return NoContent();
     }
 
-    /// <summary>Renders the work-order PDF and stores it; returns its public URL.</summary>
+    /// <summary>A link to the repair's generated work order that works for a few minutes. 404 when none has been generated.</summary>
+    [HttpGet("{id:int}/pdf-url")]
+    public async Task<ActionResult<DocumentUrlDto>> GetPdfUrl(int id, CancellationToken cancellationToken) =>
+        Ok(new DocumentUrlDto(await pdf.GetUrlAsync(id, cancellationToken)));
+
+    /// <summary>Renders the work-order PDF and stores it; returns a link to it that works for a few minutes.</summary>
     [HttpPost("{id:int}/pdf")]
     [Authorize(Policy = Policies.SalesOrAdmin)]
     public async Task<ActionResult<RepairPdfResponse>> GeneratePdf(int id, CancellationToken cancellationToken)

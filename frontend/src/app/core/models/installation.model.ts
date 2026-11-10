@@ -24,7 +24,8 @@ export interface ScheduledInstallation {
   date: string;
   slot: DaySlot;
   notes?: string;
-  reportPdfUrl?: string;
+  /** Whether a work order has been generated; its (expiring) link comes from `InstallationsService.getPdfUrl`. */
+  hasReportPdf: boolean;
   /** Optimistic-concurrency token echoed back on reschedule; a mismatch is a 409. */
   rowVersion: string;
   updatedAt?: string | null;

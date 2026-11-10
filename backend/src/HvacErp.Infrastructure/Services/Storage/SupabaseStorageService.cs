@@ -1,4 +1,7 @@
+using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using HvacErp.Application.Common;
 
@@ -7,59 +10,109 @@ namespace HvacErp.Infrastructure.Services.Storage;
 /// <summary>
 /// Talks to Supabase Storage's REST API directly (no supabase-csharp dependency) using an
 /// HttpClient pre-authorized with the service role key — see <see cref="DependencyInjection"/>.
+/// <para>
+/// Two buckets: <c>Supabase:StorageBucket</c> holds the private documents and must be a
+/// <b>private</b> bucket — its objects leave only as signed links; <c>Supabase:PublicBucket</c>
+/// holds the branding assets and must be a <b>public</b> one.
+/// </para>
 /// </summary>
 public class SupabaseStorageService : IFileStorageService
 {
     private readonly HttpClient http;
-    private readonly string bucket;
-    private readonly string publicBaseUrl;
+    private readonly string documentsBucket;
+    private readonly string publicBucket;
+    private readonly string storageBaseUrl;
 
     public SupabaseStorageService(HttpClient http, IConfiguration configuration)
     {
         this.http = http;
-        bucket = configuration["Supabase:StorageBucket"]
+        documentsBucket = configuration["Supabase:StorageBucket"]
             ?? throw new InvalidOperationException("Missing 'Supabase:StorageBucket' configuration value.");
+        publicBucket = configuration["Supabase:PublicBucket"]
+            ?? throw new InvalidOperationException("Missing 'Supabase:PublicBucket' configuration value.");
         var supabaseUrl = configuration["Supabase:Url"]
             ?? throw new InvalidOperationException("Missing 'Supabase:Url' configuration value.");
-        publicBaseUrl = $"{supabaseUrl.TrimEnd('/')}/storage/v1/object/public/{bucket}";
+        storageBaseUrl = $"{supabaseUrl.TrimEnd('/')}/storage/v1";
     }
+
+    /// <summary>The public URL prefix of the documents bucket as it was while that bucket was public.</summary>
+    public string LegacyPublicDocumentsPrefix => $"{storageBaseUrl}/object/public/{documentsBucket}/";
 
     public async Task<string> UploadAsync(string path, Stream content, string contentType, CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"storage/v1/object/{bucket}/{path}");
-        using var streamContent = new StreamContent(content);
-        streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
-        request.Content = streamContent;
-        request.Headers.Add("x-upsert", "true");
-
-        using var response = await http.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        return $"{publicBaseUrl}/{path}";
+        await PutAsync(documentsBucket, path, content, contentType, cancellationToken);
+        return path;
     }
 
-    public async Task DeleteAsync(string path, CancellationToken cancellationToken = default)
+    public async Task<string> UploadPublicAsync(string path, Stream content, string contentType, CancellationToken cancellationToken = default)
     {
-        using var response = await http.DeleteAsync($"storage/v1/object/{bucket}/{path}", cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await PutAsync(publicBucket, path, content, contentType, cancellationToken);
+        return $"{storageBaseUrl}/object/public/{publicBucket}/{EscapePath(path)}";
     }
 
-    public async Task<bool> TryDeleteByUrlAsync(string url, CancellationToken cancellationToken = default)
+    public async Task<string> CreateSignedUrlAsync(string path, TimeSpan lifetime, CancellationToken cancellationToken = default)
     {
-        var prefix = publicBaseUrl + "/";
-        if (!url.StartsWith(prefix, StringComparison.Ordinal))
+        // A value that was never a path of ours (e.g. a placeholder link on demo rows) is not signable.
+        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute) && absolute.Scheme is "http" or "https")
         {
-            return false;
+            return path;
         }
 
+        using var response = await http.PostAsJsonAsync(
+            $"storage/v1/object/sign/{documentsBucket}/{EscapePath(path)}",
+            new { expiresIn = (int)Math.Ceiling(lifetime.TotalSeconds) },
+            cancellationToken);
+
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
+        {
+            // Storage answers 400 / 404 for an object that is not there (e.g. deleted by hand).
+            throw new NotFoundException("Stored file", path);
+        }
+        response.EnsureSuccessStatusCode();
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        var signed = (body.RootElement.TryGetProperty("signedURL", out var value) || body.RootElement.TryGetProperty("signedUrl", out value)
+                ? value.GetString()
+                : null)
+            ?? throw new InvalidOperationException("Supabase Storage returned no signed URL.");
+
+        // The API answers with a path relative to the storage root: /object/sign/<bucket>/<path>?token=…
+        return signed.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? signed
+            : $"{storageBaseUrl}/{signed.TrimStart('/')}";
+    }
+
+    public async Task<bool> TryDeleteAsync(string path, CancellationToken cancellationToken = default)
+    {
         try
         {
-            using var response = await http.DeleteAsync($"storage/v1/object/{bucket}/{url[prefix.Length..]}", cancellationToken);
+            using var response = await http.DeleteAsync($"storage/v1/object/{documentsBucket}/{EscapePath(path)}", cancellationToken);
             return response.IsSuccessStatusCode;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException)
         {
             return false;
+        }
+    }
+
+    public async Task<StoredFile?> TryDownloadDocumentAsync(string path, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // The service-role key reads the object whether its bucket is public or private.
+            using var response = await http.GetAsync($"storage/v1/object/{documentsBucket}/{EscapePath(path)}", cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            return new StoredFile(
+                await response.Content.ReadAsByteArrayAsync(cancellationToken),
+                response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException)
+        {
+            return null;
         }
     }
 
@@ -87,4 +140,20 @@ public class SupabaseStorageService : IFileStorageService
             return null;
         }
     }
+
+    private async Task PutAsync(string bucket, string path, Stream content, string contentType, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"storage/v1/object/{bucket}/{EscapePath(path)}");
+        using var streamContent = new StreamContent(content);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        request.Content = streamContent;
+        request.Headers.Add("x-upsert", "true");
+
+        using var response = await http.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Escapes each segment of an object path, keeping the slashes between them.</summary>
+    private static string EscapePath(string path) =>
+        string.Join('/', path.Split('/').Select(Uri.EscapeDataString));
 }

@@ -27,15 +27,29 @@ public class RepairPdfService(
             PdfDocumentType.Repair, context, templates, storage, cancellationToken);
 
         var pdfBytes = generator.Generate(repair, renderContext);
-        var fileName = $"{(repair.Type == RepairType.Revision ? "revisione" : "riparazione")}-{repair.Id}.pdf";
+        var fileName = $"{(repair.Type == RepairType.Revision ? "revision" : "repair")}-{repair.Id}.pdf";
         var path = $"repairs/{repair.Id}/{fileName}";
 
         using var stream = new MemoryStream(pdfBytes);
-        var url = await storage.UploadAsync(path, stream, "application/pdf", cancellationToken);
-
-        repair.PdfUrl = url;
+        // A PDF generated under an older file name is replaced, not left beside the new one.
+        var previous = repair.PdfPath;
+        repair.PdfPath = await storage.UploadAsync(path, stream, "application/pdf", cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
+        if (previous is not null && previous != repair.PdfPath)
+        {
+            await storage.TryDeleteAsync(previous, cancellationToken);
+        }
 
-        return url;
+        return await storage.CreateSignedUrlAsync(repair.PdfPath, DocumentLinks.Lifetime, cancellationToken);
+    }
+
+    public async Task<string> GetUrlAsync(int repairId, CancellationToken cancellationToken = default)
+    {
+        // Through the filtered set: only someone who can read the record gets a link to its PDF.
+        var path = await context.Repairs.Where(x => x.Id == repairId).Select(x => new { x.PdfPath }).FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(Repair), repairId);
+
+        return await storage.CreateSignedUrlAsync(
+            path.PdfPath ?? throw new NotFoundException("PDF", repairId), DocumentLinks.Lifetime, cancellationToken);
     }
 }

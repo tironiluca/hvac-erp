@@ -11,6 +11,7 @@ import {
   RepairScheduleEntry,
   UpsertRepairRequest,
 } from '../models/repair.model';
+import { DocumentUrl } from '../utils/open-document';
 
 @Injectable({ providedIn: 'root' })
 export class RepairsService {
@@ -53,7 +54,12 @@ export class RepairsService {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 
-  /** Renders and stores the work order; resolves to its public URL. */
+  /** A link to the generated work order that works for a few minutes. */
+  getPdfUrl(id: number): Observable<DocumentUrl> {
+    return this.http.get<DocumentUrl>(`${this.baseUrl}/${id}/pdf-url`);
+  }
+
+  /** Renders and stores the work order; resolves to a link that works for a few minutes. */
   generatePdf(id: number): Observable<RepairPdfResponse> {
     return this.http.post<RepairPdfResponse>(`${this.baseUrl}/${id}/pdf`, {});
   }

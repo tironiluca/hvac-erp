@@ -71,7 +71,8 @@ public class Quote : IStoreOwned
     /// </summary>
     public string? FloorPlanSketchJson { get; set; }
 
-    public string? PdfUrl { get; set; }
+    /// <summary>Storage path of the last generated customer PDF (a private document), or null when none was generated.</summary>
+    public string? PdfPath { get; set; }
 
     public ICollection<QuoteProduct> Products { get; set; } = new List<QuoteProduct>();
     public ICollection<DuctedUnit> DuctedUnits { get; set; } = new List<DuctedUnit>();
@@ -229,6 +230,7 @@ public class QuoteAttachment : ITenantOwned
     public Quote Quote { get; set; } = null!;
 
     public string FileName { get; set; } = string.Empty;
-    public string FileUrl { get; set; } = string.Empty;
+    /// <summary>Storage path of the file (a private document).</summary>
+    public string FilePath { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 }

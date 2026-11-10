@@ -20,7 +20,8 @@ public record ScheduledInstallationDto(
     DateTime Date,
     string Slot,
     string? Notes,
-    string? ReportPdfUrl,
+    // Whether a work-order PDF has been generated; its link comes from GET /api/installations/{id}/pdf-url.
+    bool HasReportPdf,
     string RowVersion,
     DateTime? UpdatedAt,
     string? UpdatedBy,

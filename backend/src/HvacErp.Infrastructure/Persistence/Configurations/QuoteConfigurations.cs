@@ -170,7 +170,7 @@ public class QuoteAttachmentConfiguration : IEntityTypeConfiguration<QuoteAttach
     public void Configure(EntityTypeBuilder<QuoteAttachment> builder)
     {
         builder.Property(a => a.FileName).HasMaxLength(255).IsRequired();
-        builder.Property(a => a.FileUrl).HasMaxLength(1000).IsRequired();
+        builder.Property(a => a.FilePath).HasMaxLength(1000).IsRequired();
     }
 }
 

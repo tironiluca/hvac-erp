@@ -41,14 +41,14 @@ public static class QuoteMappingExtensions
             q.MachinesPrice, q.InstallationPrice, q.Rounding, q.FinalPrice,
             q.Incentives.OrderBy(i => i.IncentiveScheme.SortOrder).Select(i => i.ToDto()).ToList(),
             q.InstallationAddress, q.InstallationCity,
-            q.InstallationPositionNotes, q.FloorPlanImageUrl, q.PdfUrl,
+            q.InstallationPositionNotes, q.FloorPlanImageUrl, q.PdfPath is not null,
             q.Products.Select(p => p.ToDto()).ToList(),
             q.DuctedUnits.Select(d => d.ToDto()).ToList(),
             q.ServiceItems.Select(s => s.ToDto()).ToList(),
             q.Extras.Select(e => e.ToDto()).ToList(),
             q.StatusEvents.OrderBy(e => e.OccurredAt)
                 .Select(e => new QuoteStatusEventDto(e.Id, e.Status, e.OccurredAt, e.Notes, e.ChangedBy)).ToList(),
-            q.Attachments.Select(a => new QuoteAttachmentDto(a.Id, a.FileName, a.FileUrl, a.UploadedAt)).ToList(),
+            q.Attachments.Select(a => new QuoteAttachmentDto(a.Id, a.FileName, a.UploadedAt)).ToList(),
             FloorPlanSketchJson.Parse(q.FloorPlanSketchJson));
     }
 

@@ -125,6 +125,13 @@ tenant. Roles are per tenant, so the role claim is the role in the tenant of thi
 - **External calls go through ports and outboxes.** Anything sent to another system (ERP today)
   is written to an outbox table in the same transaction as the business change and sent by a worker
   with retries; the business flow never waits on the remote system.
+- **A stored file is a path, never a URL.** Generated PDFs and attachments are private documents:
+  the row keeps the object's path (`…Path` columns), and a browser reaches the file only through
+  `IFileStorageService.CreateSignedUrlAsync` — a link that expires after `DocumentLinks.Lifetime`,
+  issued by an endpoint that first loads the owning record through the tenant / store filters.
+  Never put a document link in a list or detail DTO (say `HasPdf` and let the client ask), never
+  log one, never store one. Only what is shown before sign-in (logo, favicon, login background)
+  goes to the public bucket with `UploadPublicAsync`.
 - **Uploads are identified by their bytes** (`UploadedFileInspector`), never by the content type
   the client sent; a storage object is deleted with the row that points at it.
 - **Tests with every change**: Application tests for logic, API tests for endpoints and policies,
@@ -148,6 +155,9 @@ tenant. Roles are per tenant, so the role claim is the role in the tenant of thi
   denormalised current status on the parent.
 - **`FGasRecord` parent FKs cascade** — a record is meaningless without its parent, and the XOR
   check between parents must hold.
+- **Document columns hold storage paths** (`quotes.pdf_path`, `repairs.pdf_path`,
+  `scheduled_installations.report_pdf_path`, `quote_attachments.file_path`). Branding columns
+  (`portal_brandings.*_url`) hold real public URLs, because those assets are public.
 - **Sketches are vector JSON** (`FloorPlanSketchJson`, validated by `FloorPlanSketchValidator`);
   `Quote.FloorPlanImageUrl` (raster) is unused.
 - **Incentives are rule kinds plus parameters**, not columns: `QuoteAmount` (fixed € or % of the

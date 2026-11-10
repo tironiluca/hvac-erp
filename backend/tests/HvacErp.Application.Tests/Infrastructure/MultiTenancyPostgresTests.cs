@@ -22,6 +22,7 @@ namespace HvacErp.Application.Tests.Infrastructure;
 public class MultiTenancyPostgresTests
 {
     private const string BeforeMultiTenancy = "20261109174501_ErpIntegration";
+    private const string MultiTenancyMigration = "20261110113213_MultiTenancy";
     private static readonly string? Server = Environment.GetEnvironmentVariable("POSTGRES_TEST_CONNECTION");
 
     private static readonly Guid Admin = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
@@ -130,6 +131,68 @@ public class MultiTenancyPostgresTests
         }
         finally
         {
+            await db.Database.EnsureDeletedAsync();
+        }
+    }
+
+    /// <summary>
+    /// PrivateDocumentStorage: stored public URLs become bucket paths; the rollback needs the prefix
+    /// back and refuses to guess it.
+    /// </summary>
+    [Fact]
+    public async Task Stored_document_urls_become_paths_and_roll_back_only_with_their_prefix()
+    {
+        if (Server is null) return;
+
+        const string publicBase = "https://project.supabase.co/storage/v1/object/public/documents";
+        await using var db = Open($"hvac_erp_st_{Guid.NewGuid():N}");
+        try
+        {
+            var migrator = db.GetService<IMigrator>();
+            await migrator.MigrateAsync("20261110113213_MultiTenancy");
+
+            await db.Database.ExecuteSqlRawAsync($"""
+                INSERT INTO clients (tenant_id, code, full_name) VALUES (1, 'C1', 'Client');
+                INSERT INTO quotes (tenant_id, store_id, number, version, revision, client_id, department, created_at, predisposed, vat,
+                    manual_discount, machines_price, installation_price, rounding, final_price, current_status, pdf_url)
+                SELECT 1, 1, n, 1, 0, c.id, 'Store', now(), false, 'Standard22', 0, 0, 0, 0, 0, 'Confirmed',
+                    CASE n WHEN 1 THEN '{publicBase}/quotes/1/preventivo-1-v1r0.pdf' WHEN 2 THEN 'https://example.com/demo/quote.pdf' END
+                FROM clients c, generate_series(1, 3) AS n;
+                INSERT INTO quote_attachments (tenant_id, quote_id, file_name, file_url, uploaded_at)
+                SELECT 1, id, 'site photo.jpg', '{publicBase}/quotes/1/attachments/abc-site-photo.jpg', now() FROM quotes WHERE number = 1;
+                INSERT INTO repairs (tenant_id, store_id, type, status, client_id, description, urgent, predisposed, all_inclusive,
+                    unit_count, split_count, rounding, inserted_at, pdf_url)
+                SELECT 1, 1, 'Repair', 'New', id, 'Leak', false, false, false, 1, 1, 0, now(), '{publicBase}/repairs/1/riparazione-1.pdf' FROM clients;
+                INSERT INTO scheduled_installations (tenant_id, store_id, quote_id, date, slot, concurrency_token, report_pdf_url)
+                SELECT 1, 1, id, now(), 'Morning', gen_random_uuid(), '{publicBase}/installations/1/installazione-1.pdf' FROM quotes WHERE number = 1;
+                """);
+
+            await db.Database.MigrateAsync();
+
+            Assert.Equal("quotes/1/preventivo-1-v1r0.pdf|https://example.com/demo/quote.pdf|", await Scalar<string>(db,
+                "SELECT string_agg(coalesce(pdf_path, ''), '|' ORDER BY number) FROM quotes"));
+            Assert.Equal("quotes/1/attachments/abc-site-photo.jpg", await Scalar<string>(db, "SELECT file_path FROM quote_attachments"));
+            Assert.Equal("repairs/1/riparazione-1.pdf", await Scalar<string>(db, "SELECT pdf_path FROM repairs"));
+            Assert.Equal("installations/1/installazione-1.pdf", await Scalar<string>(db, "SELECT report_pdf_path FROM scheduled_installations"));
+
+            // Rolling back without the prefix would store broken links: refused, nothing changed.
+            var refused = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync("20261110113213_MultiTenancy"));
+            Assert.Contains("hvac.storage_public_base", refused.MessageText);
+            Assert.Equal("repairs/1/riparazione-1.pdf", await Scalar<string>(db, "SELECT pdf_path FROM repairs"));
+
+            // With the prefix (set on the session the migrator runs in) the URLs come back as they were.
+            await db.Database.OpenConnectionAsync();
+            await db.Database.ExecuteSqlRawAsync($"SET hvac.storage_public_base = '{publicBase}/'");
+            await migrator.MigrateAsync("20261110113213_MultiTenancy");
+
+            Assert.Equal($"{publicBase}/quotes/1/preventivo-1-v1r0.pdf|https://example.com/demo/quote.pdf|", await Scalar<string>(db,
+                "SELECT string_agg(coalesce(pdf_url, ''), '|' ORDER BY number) FROM quotes"));
+            Assert.Equal($"{publicBase}/quotes/1/attachments/abc-site-photo.jpg", await Scalar<string>(db, "SELECT file_url FROM quote_attachments"));
+            Assert.Equal($"{publicBase}/installations/1/installazione-1.pdf", await Scalar<string>(db, "SELECT report_pdf_url FROM scheduled_installations"));
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
             await db.Database.EnsureDeletedAsync();
         }
     }

@@ -40,7 +40,8 @@ public class Repair : IStoreOwned
     /// <summary>Free-hand floor-plan sketch as vector JSON (see <see cref="Quote.FloorPlanSketchJson"/>); <c>jsonb</c>. Null when never drawn.</summary>
     public string? FloorPlanSketchJson { get; set; }
 
-    public string? PdfUrl { get; set; }
+    /// <summary>Storage path of the last generated work-order PDF (a private document), or null when none was generated.</summary>
+    public string? PdfPath { get; set; }
 
     public ICollection<RepairServiceItem> ServiceItems { get; set; } = new List<RepairServiceItem>();
     public ICollection<RepairScheduleEntry> ScheduleEntries { get; set; } = new List<RepairScheduleEntry>();

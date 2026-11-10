@@ -26,6 +26,7 @@ import { FloorPlanSketch } from '../../../core/models/floor-plan-sketch.model';
 import { DaySlot, ScheduledInstallation, UpsertScheduledInstallationRequest } from '../../../core/models/installation.model';
 import { FloorPlanSketchComponent } from '../../../shared/floor-plan-sketch/floor-plan-sketch.component';
 import { toLocalDateTimeIso } from '../../../core/utils/date.util';
+import { openDocument } from '../../../core/utils/open-document';
 
 @Component({
   selector: 'hvac-installation-form',
@@ -172,6 +173,15 @@ export class InstallationFormComponent {
     });
   }
 
+  /** Opens the stored work order through a link issued for this click (it expires after a few minutes). */
+  protected viewPdf(): void {
+    const id = this.installationId();
+    if (!id) return;
+    openDocument(this.installationsService.getPdfUrl(id), () =>
+      this.snackbar.error(this.transloco.translate('common.documentError')),
+    );
+  }
+
   protected generatePdf(): void {
     const id = this.installationId();
     if (!id) return;
@@ -179,7 +189,7 @@ export class InstallationFormComponent {
     this.installationsService.generatePdf(id).subscribe({
       next: (res) => {
         this.generatingPdf.set(false);
-        this.installation.update((i) => (i ? { ...i, reportPdfUrl: res.url } : i));
+        this.installation.update((i) => (i ? { ...i, hasReportPdf: true } : i));
         window.open(res.url, '_blank');
       },
       error: () => {

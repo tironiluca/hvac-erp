@@ -62,7 +62,8 @@ export interface RepairDetail {
   rounding: number;
   insertedAt: string;
   installationDate?: string;
-  pdfUrl?: string;
+  /** Whether a work order has been generated; its (expiring) link comes from `RepairsService.getPdfUrl`. */
+  hasPdf: boolean;
   total: number;
   floorPlanSketch?: FloorPlanSketch | null;
   serviceItems: RepairServiceItemLine[];

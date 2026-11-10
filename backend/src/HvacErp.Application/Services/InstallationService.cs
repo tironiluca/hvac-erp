@@ -11,7 +11,8 @@ namespace HvacErp.Application.Services;
 public class InstallationService(
     IAppDbContext context,
     ICurrentUser currentUser,
-    IInstallationCalendarNotifier notifier) : IInstallationService
+    IInstallationCalendarNotifier notifier,
+    IFileStorageService? storage = null) : IInstallationService
 {
     public async Task<List<ScheduledInstallationDto>> GetListAsync(DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
     {
@@ -124,6 +125,11 @@ public class InstallationService(
         await context.SaveChangesAsync(cancellationToken);
 
         await notifier.InstallationDeletedAsync(id, installation.StoreId, cancellationToken);
+
+        if (storage is not null && installation.ReportPdfPath is not null)
+        {
+            await storage.TryDeleteAsync(installation.ReportPdfPath, cancellationToken);
+        }
     }
 
     private static void ValidateNotInThePast(DateTime date)
@@ -188,7 +194,7 @@ public class InstallationService(
         s.Date,
         s.Slot,
         s.Notes,
-        s.ReportPdfUrl,
+        s.ReportPdfPath is not null,
         s.ConcurrencyToken.ToString(),
         s.UpdatedAt,
         s.UpdatedBy,

@@ -12,6 +12,7 @@ using HvacErp.Infrastructure;
 using HvacErp.Domain.Enums;
 using HvacErp.Infrastructure.Persistence;
 using HvacErp.Infrastructure.Persistence.Seed;
+using HvacErp.Infrastructure.Services.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -139,6 +140,20 @@ builder.Services.AddAuthorizationBuilder().AddAppPolicies();
 
 var app = builder.Build();
 
+// One-off deployment step of the move to a private documents bucket: copies the branding assets
+// (logo, favicon, login background) to the public bucket. See the README's Deployment section.
+if (args.Contains("move-branding-assets", StringComparer.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    var moves = await scope.ServiceProvider.GetRequiredService<BrandingAssetMover>().MoveAsync();
+    foreach (var move in moves)
+    {
+        Console.WriteLine($"{(move.Moved ? "moved  " : "skipped")} {move.Kind}: {move.Detail}");
+    }
+    Console.WriteLine(moves.Count == 0 ? "No branding assets are set." : $"{moves.Count(m => m.Moved)} of {moves.Count} moved.");
+    return;
+}
+
 // Seed commands write through a context fixed on one tenant and its first store: the first tenant
 // (the one the migration creates) unless `--tenant <id>` names another.
 // `seed-demo` layers a large, interlinked demo/test dataset (clients, quotes, repairs,
@@ -153,12 +168,7 @@ if (seedDemo || args.Contains("seed", StringComparer.OrdinalIgnoreCase))
     await using var context = await SeedContext.CreateAsync(scope.ServiceProvider, seedTenantId);
     if (seedDemo)
     {
-        var storageUrl = builder.Configuration["Supabase:Url"];
-        var bucket = builder.Configuration["Supabase:StorageBucket"];
-        var demoAssets = string.IsNullOrWhiteSpace(storageUrl) || string.IsNullOrWhiteSpace(bucket)
-            ? null
-            : $"{storageUrl.TrimEnd('/')}/storage/v1/object/public/{bucket}/demo";
-        await DemoDataSeeder.SeedAsync(context, demoAssets);
+        await DemoDataSeeder.SeedAsync(context);
     }
     else
     {

@@ -11,6 +11,7 @@ import {
   RecallQuoteRequest,
   UpsertQuoteRequest,
 } from '../models/quote.model';
+import { DocumentUrl } from '../utils/open-document';
 
 @Injectable({ providedIn: 'root' })
 export class QuotesService {
@@ -78,7 +79,17 @@ export class QuotesService {
     return this.http.post<QuotePdfResponse>(`${this.baseUrl}/${id}/pdf`, {});
   }
 
-  /** Uploads a photo / document as multipart form data (20 MB max). */
+  /** A link to the generated PDF that works for a few minutes. */
+  getPdfUrl(id: number): Observable<DocumentUrl> {
+    return this.http.get<DocumentUrl>(`${this.baseUrl}/${id}/pdf-url`);
+  }
+
+  /** A link to an attachment's file that works for a few minutes. */
+  getAttachmentUrl(id: number, attachmentId: number): Observable<DocumentUrl> {
+    return this.http.get<DocumentUrl>(`${this.baseUrl}/${id}/attachments/${attachmentId}/url`);
+  }
+
+  /** Uploads a photo or PDF as multipart form data (20 MB max). */
   uploadAttachment(id: number, file: File): Observable<QuoteAttachment> {
     const formData = new FormData();
     formData.append('file', file, file.name);

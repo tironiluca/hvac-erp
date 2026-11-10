@@ -30,15 +30,29 @@ public class InstallationPdfService(
             PdfDocumentType.Installation, context, templates, storage, cancellationToken);
 
         var pdfBytes = generator.Generate(installation, slotLabel.ToUpperInvariant(), renderContext);
-        var fileName = $"installazione-{installation.Id}.pdf";
+        var fileName = $"installation-{installation.Id}.pdf";
         var path = $"installations/{installation.Id}/{fileName}";
 
         using var stream = new MemoryStream(pdfBytes);
-        var url = await storage.UploadAsync(path, stream, "application/pdf", cancellationToken);
-
-        installation.ReportPdfUrl = url;
+        // A PDF generated under an older file name is replaced, not left beside the new one.
+        var previous = installation.ReportPdfPath;
+        installation.ReportPdfPath = await storage.UploadAsync(path, stream, "application/pdf", cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
+        if (previous is not null && previous != installation.ReportPdfPath)
+        {
+            await storage.TryDeleteAsync(previous, cancellationToken);
+        }
 
-        return url;
+        return await storage.CreateSignedUrlAsync(installation.ReportPdfPath, DocumentLinks.Lifetime, cancellationToken);
+    }
+
+    public async Task<string> GetUrlAsync(int installationId, CancellationToken cancellationToken = default)
+    {
+        // Through the filtered set: only someone who can read the record gets a link to its PDF.
+        var path = await context.ScheduledInstallations.Where(x => x.Id == installationId).Select(x => new { x.ReportPdfPath }).FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(ScheduledInstallation), installationId);
+
+        return await storage.CreateSignedUrlAsync(
+            path.ReportPdfPath ?? throw new NotFoundException("PDF", installationId), DocumentLinks.Lifetime, cancellationToken);
     }
 }

@@ -7,7 +7,7 @@ using HvacErp.Domain.Entities;
 namespace HvacErp.Application.Services;
 
 /// <summary>Default <see cref="Interfaces.IRepairService"/> over EF Core.</summary>
-public class RepairService(IAppDbContext context, ICurrentUser currentUser) : IRepairService
+public class RepairService(IAppDbContext context, ICurrentUser currentUser, IFileStorageService? storage = null) : IRepairService
 {
     public async Task<List<RepairListItemDto>> GetListAsync(int? clientId = null, CancellationToken cancellationToken = default)
     {
@@ -113,6 +113,11 @@ public class RepairService(IAppDbContext context, ICurrentUser currentUser) : IR
         // Children (service lines, appointments, status events, F-Gas records) cascade in the database.
         context.Repairs.Remove(repair);
         await context.SaveChangesAsync(cancellationToken);
+
+        if (storage is not null && repair.PdfPath is not null)
+        {
+            await storage.TryDeleteAsync(repair.PdfPath, cancellationToken);
+        }
     }
 
     private async Task<Repair> LoadDetailedAsync(int id, CancellationToken cancellationToken) =>
@@ -159,7 +164,7 @@ public class RepairService(IAppDbContext context, ICurrentUser currentUser) : IR
     private static RepairDetailDto ToDetailDto(Repair r) => new(
         r.Id, r.Type, r.Status, r.ClientId, r.Client.FullName, r.QuoteId, r.Brand, r.Description,
         r.Urgent, r.Predisposed, r.AllInclusive, r.UnitCount, r.SplitCount, r.Rounding,
-        r.InsertedAt, r.InstallationDate, r.PdfUrl, ComputeTotal(r),
+        r.InsertedAt, r.InstallationDate, r.PdfPath is not null, ComputeTotal(r),
         r.ServiceItems.Select(s => new RepairServiceItemDto(s.Id, s.ServiceItemId, s.ServiceItem.Name, s.Quantity, s.UnitPrice)).ToList(),
         r.ScheduleEntries.Select(s => new RepairScheduleEntryDto(s.Id, s.InstallerId, s.Installer?.Name, s.Date, s.Notes)).ToList(),
         r.StatusEvents.OrderBy(e => e.OccurredAt)

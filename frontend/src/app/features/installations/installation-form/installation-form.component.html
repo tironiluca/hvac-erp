@@ -111,11 +111,11 @@
             }
             {{ 'installations.generatePdf' | transloco }}
           </button>
-          @if (i.reportPdfUrl) {
-            <a mat-stroked-button [href]="i.reportPdfUrl" target="_blank" rel="noopener">
+          @if (i.hasReportPdf) {
+            <button mat-stroked-button type="button" (click)="viewPdf()">
               <mat-icon>open_in_new</mat-icon>
               {{ 'installations.viewPdf' | transloco }}
-            </a>
+            </button>
           }
           <button mat-stroked-button color="warn" type="button" (click)="deleteInstallation()">
             <mat-icon>delete</mat-icon>

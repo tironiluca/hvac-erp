@@ -14,7 +14,8 @@ public class QuoteService(
     IQuoteNumberingService numbering,
     IQuotePricingService pricing,
     ICurrentUser currentUser,
-    IErpExportService? erp = null) : IQuoteService
+    IErpExportService? erp = null,
+    IFileStorageService? storage = null) : IQuoteService
 {
     public async Task<List<QuoteListItemDto>> GetListAsync(int? clientId = null, CancellationToken cancellationToken = default)
     {
@@ -161,8 +162,24 @@ public class QuoteService(
             throw new BusinessRuleException("This quote's order is already in the ERP, so it can no longer be deleted.");
         }
 
+        // The quote's files go with it, after the rows: a leftover file is clutter, a leftover row
+        // pointing at a deleted file is a broken link.
+        var files = await context.QuoteAttachments.Where(a => a.QuoteId == id).Select(a => a.FilePath).ToListAsync(cancellationToken);
+        if (quote.PdfPath is not null)
+        {
+            files.Add(quote.PdfPath);
+        }
+
         context.Quotes.Remove(quote);
         await context.SaveChangesAsync(cancellationToken);
+
+        if (storage is not null)
+        {
+            foreach (var path in files)
+            {
+                await storage.TryDeleteAsync(path, cancellationToken);
+            }
+        }
     }
 
     /// <summary>

@@ -204,6 +204,18 @@ mat-form-field {
   gap: 8px;
   align-items: flex-start;
 
+  // A button that reads as the link it replaced: the file opens through a link fetched on click.
+  &__link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--mat-sys-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    text-align: start;
+  }
+
   &__item {
     display: flex;
     align-items: center;

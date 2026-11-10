@@ -79,7 +79,8 @@ public partial class BrandingService(
 
         var normalizedKind = kind.ToLowerInvariant();
         var path = $"branding/{normalizedKind}-{DateTime.UtcNow:yyyyMMddHHmmssfff}{extension}";
-        var url = await storage.UploadAsync(path, content, contentType, cancellationToken);
+        // Shown on the login page before anyone signs in: a public asset by nature.
+        var url = await storage.UploadPublicAsync(path, content, contentType, cancellationToken);
 
         var row = await GetOrCreateRowAsync(cancellationToken);
         switch (normalizedKind)

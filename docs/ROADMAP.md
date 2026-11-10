@@ -44,7 +44,7 @@ here; the detail lives in git history, the [README](../README.md) and
 | Proper data tables (server paging, sort, filters, export), global search | ❌ | §8 |
 | Proper README, quick start and docs | ❌ | §9 |
 | Offers / staff leave / customer portal / smaller modules | ❌ | §10 |
-| Security and access hardening | 🟡 | §11 — access model, upload and delete guards done; private storage next |
+| Security and access hardening | 🟡 | §11 — access model, private storage, upload and delete guards done; rate limiting, audit, invitations open |
 | Administration: users, catalogue, reference data | ❌ | §12 — today: SQL |
 | Quote lifecycle: state machine, follow-ups, acceptance, payments | ❌ | §13 |
 | One field calendar: installations, repairs, surveys, conflicts | ❌ | §14 |
@@ -60,7 +60,7 @@ here; the detail lives in git history, the [README](../README.md) and
 **Suggested order** (why this order, not just what)
 
 1. **§11 Security and access hardening** — closes exposures that exist on a live deployment today.
-   *Access model done with §6; next: private storage and signed URLs.*
+   *Access model and private storage done; what is left needs deployment input or §12's screens.*
 2. **§5** end-to-end check — small, proves the outbox on a real deployment.
 3. **§6 multi-tenancy** — decided yes; steps 1–2 and the switcher are done, so §13–§19 create
    their tables with `tenant_id` and a tenant policy from the start. *Next: tenant / store /
@@ -146,9 +146,10 @@ Condensed, in delivery order.
   pre-rename project name as its **file name** (text searches miss file names) — deleted. The name
   stays in git history; rewrite history only if that matters to the deployment's owner. When
   reviewing for identity, list file names too (`git ls-files`), not only contents.
-- [ ] English leftovers: the quote PDF is uploaded as `preventivo-{number}-….pdf`
-  (`QuotePdfService`); the README's calendar paragraph quotes Italian slot labels. Name files from
-  the template language.
+- [x] Generated PDFs were stored under Italian file names (`preventivo-…`, `riparazione-…`,
+  `installazione-…`); now `quote-…`, `repair-…` / `revision-…`, `installation-…`. A file stored
+  under an old name is replaced the next time its PDF is generated.
+- [ ] The README's calendar paragraph still quotes Italian slot labels.
 
 **Done when** a fresh deployment with only the default seeds shows no customer identity. Keep it
 that way: review every change for brand names, hosts and project ids.
@@ -400,8 +401,7 @@ in CI.
 
 **Steps**
 - [ ] Demo seed + `docker-compose.yml` quick start, verified from a clean clone.
-- [ ] README rewrite with features, concepts, deploy-your-own. Fix while there: the README tells
-  the operator to create a **public** bucket (goes with the private-storage step of §11).
+- [ ] README rewrite with features, concepts, deploy-your-own.
 - [ ] Screenshot script and images; badges; link check in CI.
 - [ ] `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`.
 
@@ -438,10 +438,11 @@ Found by reading the code against a live-deployment threat model. Each item name
   publishable key in the SPA bundle was enough to register, read every table through the Data API
   and write through the API. Now a new identity gets a profile and no access, and every policy
   asks for a membership.
-- **Customer documents are public and enumerable.** `SupabaseStorageService` returns
-  `/object/public/…` URLs and the README asks for a public bucket. A quote PDF lives at
-  `quotes/{id}/preventivo-{number}-v{version}r{revision}.pdf` — sequential ids, no secret — and
-  carries name, address, tax code and prices. Work orders and repairs follow the same pattern.
+- ✅ *Fixed — once the bucket is made private (§21).* **Customer documents were public and
+  enumerable.** Storage returned `/object/public/…` URLs and the README asked for a public
+  bucket: a quote PDF lived at `quotes/{id}/preventivo-{number}-v{version}r{revision}.pdf` —
+  sequential ids, no secret — with name, address, tax code and prices on it. Now rows keep a
+  path, and a link that works for ten minutes is issued to someone who can read the record.
 - ✅ *Fixed.* **Uploads were not checked.** Quote attachments accepted any content type up to
   20 MB and stored the client-supplied type; deleting an attachment removed the row and left the
   file. Now the type is read from the bytes (photos and PDF only) and the file goes with the row.
@@ -494,15 +495,18 @@ Found by reading the code against a live-deployment threat model. Each item name
   to disable a person, RLS policies that give nothing without a membership; tests for the
   unknown-identity path at every layer.
 - [ ] Invitations by e-mail, "forgot password", optional TOTP (with the users screen of §12).
-- [ ] Private bucket, stored paths, signed-URL endpoints, SPA and PDF generators updated, data
-  migration. **Needs a deployment step** (bucket flipped to private after the release).
+- [x] Private documents: rows store the object's path (migration `PrivateDocumentStorage`, which
+  strips the public prefix from stored URLs); `GET …/pdf-url` and `GET …/attachments/{id}/url`
+  issue a signed link per click; the SPA opens documents through them. Branding assets, public by
+  nature, moved to their own public bucket (`Supabase:PublicBucket`). **The bucket itself is
+  flipped by the operator — §21.**
 - [x] Attachment uploads: the type is read from the file's bytes (photos and PDF only), the
   client's content type is ignored; deleting an attachment deletes its file.
 - [x] Quote delete guards: refused while an installation is scheduled or once the order is in the
   ERP. A draft, or a confirmed quote nothing depends on, can still be deleted until §13 brings
   *Cancelled*.
-- [ ] Still open from the two above: F-Gas delete (goes with the void entry of §17); deleting a
-  quote leaves its PDF and attachment files in storage.
+- [x] Deleting a quote, repair or installation deletes its PDF and attachment files.
+- [ ] Still open: F-Gas delete (goes with the void entry of §17).
 - [ ] Rate limiter, HSTS, forwarded headers, mock-ERP production guard. Needs the deployment's
   proxy topology: a limiter keyed on the wrong client address throttles everyone at once.
 - [ ] Audit entries + interceptor + admin viewer; client data export and anonymise.
@@ -867,8 +871,12 @@ Not code — settings each deployment should have. See the README's *Deployment*
   bootstrap e-mail must not be registrable by someone else.
 - [ ] Supabase **Data API** off, or `public` removed from its exposed schemas — the SPA uses
   Supabase for Auth and Storage only.
-- [ ] Storage bucket **private** once the signed-URL release of §11 is deployed (public until
-  then, or existing links break).
+- [ ] **Private documents**, in this order: (1) create a **public** bucket for branding assets
+  (`public-assets`, or set `Supabase__PublicBucket`); (2) deploy the release and apply
+  `PrivateDocumentStorage`; (3) run `dotnet run -- move-branding-assets` once — it copies the logo,
+  favicon and login background to the public bucket and relinks them; (4) make the documents
+  bucket **private** in the dashboard. Until step 4 the old public links keep working, so there is
+  no outage window, and no protection either.
 - [ ] Supabase Auth **leaked password protection** on (Dashboard → Auth → Password security).
 - [ ] `MockErp__Enabled` unset in production.
 - [ ] Render health-check path `/health/live`.

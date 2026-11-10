@@ -81,7 +81,6 @@ export interface QuoteStatusEvent {
 export interface QuoteAttachment {
   id: number;
   fileName: string;
-  fileUrl: string;
   uploadedAt: string;
 }
 
@@ -138,7 +137,8 @@ export interface QuoteDetail {
   installationPositionNotes?: string;
   floorPlanImageUrl?: string;
   floorPlanSketch?: FloorPlanSketch | null;
-  pdfUrl?: string;
+  /** Whether a PDF has been generated; its (expiring) link comes from `QuotesService.getPdfUrl`. */
+  hasPdf: boolean;
   products: QuoteProduct[];
   ductedUnits: DuctedUnit[];
   serviceItems: QuoteServiceItemLine[];

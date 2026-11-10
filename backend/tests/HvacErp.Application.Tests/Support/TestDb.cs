@@ -137,3 +137,58 @@ public sealed class RecordingCalendarNotifier : IInstallationCalendarNotifier
         return Task.CompletedTask;
     }
 }
+
+/// <summary>Storage that keeps everything in memory and records what was asked of it.</summary>
+public sealed class FakeStorage : IFileStorageService
+{
+    /// <summary>Private documents by path.</summary>
+    public Dictionary<string, StoredFile> Documents { get; } = [];
+
+    /// <summary>Public assets by path.</summary>
+    public Dictionary<string, StoredFile> PublicAssets { get; } = [];
+
+    /// <summary>Paths <see cref="TryDeleteAsync"/> was called with, whether or not it succeeded.</summary>
+    public List<string> DeleteRequests { get; } = [];
+
+    /// <summary>Makes deletes fail, as when storage is unreachable.</summary>
+    public bool DeleteSucceeds { get; set; } = true;
+
+    public static string SignedUrl(string path, TimeSpan lifetime) =>
+        $"https://storage.example/signed/{path}?expiresIn={(int)lifetime.TotalSeconds}";
+
+    public async Task<string> UploadAsync(string path, Stream content, string contentType, CancellationToken cancellationToken = default)
+    {
+        Documents[path] = await ReadAsync(content, contentType, cancellationToken);
+        return path;
+    }
+
+    public async Task<string> UploadPublicAsync(string path, Stream content, string contentType, CancellationToken cancellationToken = default)
+    {
+        PublicAssets[path] = await ReadAsync(content, contentType, cancellationToken);
+        return $"https://storage.example/public/{path}";
+    }
+
+    public Task<string> CreateSignedUrlAsync(string path, TimeSpan lifetime, CancellationToken cancellationToken = default) =>
+        Documents.ContainsKey(path)
+            ? Task.FromResult(SignedUrl(path, lifetime))
+            : throw new NotFoundException("Stored file", path);
+
+    public Task<bool> TryDeleteAsync(string path, CancellationToken cancellationToken = default)
+    {
+        DeleteRequests.Add(path);
+        return Task.FromResult(DeleteSucceeds && Documents.Remove(path));
+    }
+
+    public Task<StoredFile?> TryDownloadDocumentAsync(string path, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Documents.GetValueOrDefault(path));
+
+    public Task<byte[]?> TryDownloadAsync(string url, CancellationToken cancellationToken = default) =>
+        Task.FromResult<byte[]?>(null);
+
+    private static async Task<StoredFile> ReadAsync(Stream content, string contentType, CancellationToken cancellationToken)
+    {
+        using var copy = new MemoryStream();
+        await content.CopyToAsync(copy, cancellationToken);
+        return new StoredFile(copy.ToArray(), contentType);
+    }
+}

@@ -155,11 +155,11 @@
             }
             {{ 'repairs.generatePdf' | transloco }}
           </button>
-          @if (r.pdfUrl) {
-            <a mat-stroked-button [href]="r.pdfUrl" target="_blank" rel="noopener">
+          @if (r.hasPdf) {
+            <button mat-stroked-button type="button" (click)="viewPdf()">
               <mat-icon>open_in_new</mat-icon>
               {{ 'repairs.viewPdf' | transloco }}
-            </a>
+            </button>
           }
           <button mat-stroked-button color="warn" type="button" (click)="deleteRepair()">
             <mat-icon>delete</mat-icon>

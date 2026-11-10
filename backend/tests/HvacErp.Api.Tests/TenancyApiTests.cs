@@ -22,11 +22,27 @@ public class TenancyApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [InlineData("/api/dashboard")]
     [InlineData("/api/lookups/products")]
     [InlineData("/api/lookups/vat-options")]
+    [InlineData("/api/quotes/1/pdf-url")]
+    [InlineData("/api/quotes/1/attachments/1/url")]
+    [InlineData("/api/repairs/1/pdf-url")]
+    [InlineData("/api/installations/1/pdf-url")]
     public async Task Signed_in_without_a_membership_is_forbidden_everywhere(string url)
     {
         var response = await factory.ClientAs(ApiFactory.NoMembership).GetAsync(url);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/quotes/987654/pdf-url")]
+    [InlineData("/api/quotes/987654/attachments/1/url")]
+    [InlineData("/api/repairs/987654/pdf-url")]
+    [InlineData("/api/installations/987654/pdf-url")]
+    public async Task A_document_link_for_a_record_the_caller_cannot_see_is_not_found(string url)
+    {
+        var response = await factory.ClientAs("Warehouse").GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

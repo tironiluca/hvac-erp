@@ -1,9 +1,12 @@
 namespace HvacErp.Application.Interfaces;
 
-/// <summary>Generates the customer-facing quote PDF, uploads it to Storage, and stamps Quote.PdfUrl.</summary>
+/// <summary>Generates the customer-facing quote PDF, uploads it to Storage, and records its storage path on the quote.</summary>
 public interface IQuotePdfService
 {
-    /// <summary>Renders the customer quote PDF and saves its URL on the quote with the active template, then uploads it to Storage.</summary>
-    /// <returns>The public URL of the generated PDF.</returns>
+    /// <summary>Renders the customer quote PDF with the active template, then uploads it to Storage.</summary>
+    /// <returns>A short-lived link to the generated PDF.</returns>
     Task<string> GenerateAndStoreAsync(int quoteId, CancellationToken cancellationToken = default);
+
+    /// <summary>A short-lived link to the PDF generated last. 404 when the record does not exist for the caller or has no PDF yet.</summary>
+    Task<string> GetUrlAsync(int quoteId, CancellationToken cancellationToken = default);
 }

@@ -46,6 +46,8 @@ npm run build              # production build (needs the HVAC_* variables)
   *Tenancy* in `docs/ARCHITECTURE.md`.
 - A new mutating endpoint: a role policy, XML docs, an API test. Reach line tables through their
   parent so the store filter applies.
+- A stored file: keep its path on the row, say `HasX` in the DTO, and issue a signed link from an
+  endpoint that loads the owning record first. No document URLs in DTOs, logs or the database.
 - A pricing change: Application tests plus the frontend preview (`quote-price-estimate.ts`) kept in
   step with `QuotePricingService`.
 - Update the README and `docs/ROADMAP.md` in the same change when behaviour or status changes.

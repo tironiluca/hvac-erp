@@ -43,7 +43,8 @@ public record RepairDetailDto(
     decimal Rounding,
     DateTime InsertedAt,
     DateTime? InstallationDate,
-    string? PdfUrl,
+    // Whether a work-order PDF has been generated; its link comes from GET /api/repairs/{id}/pdf-url.
+    bool HasPdf,
     decimal Total,
     List<RepairServiceItemDto> ServiceItems,
     List<RepairScheduleEntryDto> ScheduleEntries,

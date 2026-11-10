@@ -30,6 +30,7 @@ import { FloorPlanSketch } from '../../../core/models/floor-plan-sketch.model';
 import { RepairDetail, RepairStatus, RepairType, UpsertRepairRequest } from '../../../core/models/repair.model';
 import { REPAIR_STATUSES, repairStatusColorClass } from '../repair-status';
 import { toLocalDateTimeIso } from '../../../core/utils/date.util';
+import { openDocument } from '../../../core/utils/open-document';
 
 type ServiceItemGroup = FormGroup<{
   serviceItemId: FormControl<number | null>;
@@ -289,6 +290,15 @@ export class RepairFormComponent {
     });
   }
 
+  /** Opens the stored work order through a link issued for this click (it expires after a few minutes). */
+  protected viewPdf(): void {
+    const id = this.repairId();
+    if (!id) return;
+    openDocument(this.repairsService.getPdfUrl(id), () =>
+      this.snackbar.error(this.transloco.translate('common.documentError')),
+    );
+  }
+
   protected generatePdf(): void {
     const id = this.repairId();
     if (!id) return;
@@ -296,7 +306,7 @@ export class RepairFormComponent {
     this.repairsService.generatePdf(id).subscribe({
       next: (res) => {
         this.generatingPdf.set(false);
-        this.repair.update((r) => (r ? { ...r, pdfUrl: res.url } : r));
+        this.repair.update((r) => (r ? { ...r, hasPdf: true } : r));
         window.open(res.url, '_blank');
       },
       error: () => {

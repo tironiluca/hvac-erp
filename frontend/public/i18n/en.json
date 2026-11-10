@@ -8,7 +8,8 @@
     "delete": "Delete",
     "next": "Next",
     "back": "Back",
-    "forbidden": "Your role is not allowed to perform this action."
+    "forbidden": "Your role is not allowed to perform this action.",
+    "documentError": "Could not open the document."
   },
   "auth": {
     "signInSubtitle": "Sign in to your account",

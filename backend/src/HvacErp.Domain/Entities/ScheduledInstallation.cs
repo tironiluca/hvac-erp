@@ -18,7 +18,8 @@ public class ScheduledInstallation : IStoreOwned
     /// <summary><see cref="Entities.DaySlot"/> lookup code (<see cref="DaySlotCodes"/>).</summary>
     public string Slot { get; set; } = DaySlotCodes.Morning;
     public string? Notes { get; set; }
-    public string? ReportPdfUrl { get; set; }
+    /// <summary>Storage path of the last generated work-order PDF (a private document), or null when none was generated.</summary>
+    public string? ReportPdfPath { get; set; }
 
     /// <summary>Free-hand floor-plan sketch as vector JSON (see <see cref="Quote.FloorPlanSketchJson"/>); <c>jsonb</c>. Null when never drawn.</summary>
     public string? FloorPlanSketchJson { get; set; }

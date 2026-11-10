@@ -13,7 +13,7 @@ public class QuoteAttachmentServiceTests
     private static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02];
 
     private readonly AppDbContext _db = TestDb.Create();
-    private readonly RecordingStorage _storage = new();
+    private readonly FakeStorage _storage = new();
     private readonly QuoteAttachmentService _sut;
     private readonly Quote _quote;
 
@@ -31,12 +31,26 @@ public class QuoteAttachmentServiceTests
     {
         var attachment = await _sut.UploadAsync(_quote.Id, "site photo.jpg", new MemoryStream(Jpeg), "text/html");
 
-        var (path, contentType, bytes) = Assert.Single(_storage.Uploads);
-        Assert.Equal("image/jpeg", contentType);
-        Assert.Equal(Jpeg, bytes);
+        var (path, file) = Assert.Single(_storage.Documents);
+        Assert.Equal("image/jpeg", file.ContentType);
+        Assert.Equal(Jpeg, file.Content);
         Assert.StartsWith($"quotes/{_quote.Id}/attachments/", path);
         Assert.EndsWith("-site-photo.jpg", path);
         Assert.Equal("site photo.jpg", attachment.FileName);
+        Assert.Equal(path, (await _db.QuoteAttachments.SingleAsync()).FilePath); // the row keeps the path, not a link
+    }
+
+    [Fact]
+    public async Task An_attachment_is_reached_through_a_link_that_expires()
+    {
+        var attachment = await _sut.UploadAsync(_quote.Id, "a.jpg", new MemoryStream(Jpeg), "image/jpeg");
+        var path = _storage.Documents.Keys.Single();
+
+        var url = await _sut.GetUrlAsync(_quote.Id, attachment.Id);
+
+        Assert.Equal(FakeStorage.SignedUrl(path, DocumentLinks.Lifetime), url);
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetUrlAsync(_quote.Id, attachment.Id + 1));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetUrlAsync(_quote.Id + 1, attachment.Id));
     }
 
     [Theory]
@@ -50,7 +64,7 @@ public class QuoteAttachmentServiceTests
             () => _sut.UploadAsync(_quote.Id, "innocent.jpg", new MemoryStream(Encoding.UTF8.GetBytes(content)), claimedType));
 
         Assert.Contains("PDF", error.Message);
-        Assert.Empty(_storage.Uploads);
+        Assert.Empty(_storage.Documents);
         Assert.Empty(await _db.QuoteAttachments.ToListAsync());
     }
 
@@ -75,7 +89,21 @@ public class QuoteAttachmentServiceTests
         await _sut.DeleteAsync(_quote.Id, attachment.Id);
 
         Assert.Empty(await _db.QuoteAttachments.ToListAsync());
-        Assert.Equal([attachment.FileUrl], _storage.DeletedUrls);
+        Assert.Empty(_storage.Documents);
+    }
+
+    [Fact]
+    public async Task Deleting_a_quote_removes_its_pdf_and_attachments_from_storage()
+    {
+        await _sut.UploadAsync(_quote.Id, "a.jpg", new MemoryStream(Jpeg), "image/jpeg");
+        _quote.PdfPath = await _storage.UploadAsync($"quotes/{_quote.Id}/quote.pdf", new MemoryStream([1]), "application/pdf");
+        await _storage.UploadAsync("quotes/999/other.pdf", new MemoryStream([1]), "application/pdf");
+        await _db.SaveChangesAsync();
+        var quotes = new QuoteService(_db, new QuoteNumberingService(_db), new QuotePricingService(_db), new FakeCurrentUser(), storage: _storage);
+
+        await quotes.DeleteAsync(_quote.Id);
+
+        Assert.Equal(["quotes/999/other.pdf"], _storage.Documents.Keys); // only this quote's files went
     }
 
     [Fact]
@@ -87,31 +115,5 @@ public class QuoteAttachmentServiceTests
         await _sut.DeleteAsync(_quote.Id, attachment.Id);
 
         Assert.Empty(await _db.QuoteAttachments.ToListAsync());
-    }
-
-    private sealed class RecordingStorage : IFileStorageService
-    {
-        public List<(string Path, string ContentType, byte[] Bytes)> Uploads { get; } = [];
-        public List<string> DeletedUrls { get; } = [];
-        public bool DeleteSucceeds { get; set; } = true;
-
-        public async Task<string> UploadAsync(string path, Stream content, string contentType, CancellationToken cancellationToken = default)
-        {
-            using var copy = new MemoryStream();
-            await content.CopyToAsync(copy, cancellationToken);
-            Uploads.Add((path, contentType, copy.ToArray()));
-            return $"https://storage.example/{path}";
-        }
-
-        public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task<bool> TryDeleteByUrlAsync(string url, CancellationToken cancellationToken = default)
-        {
-            DeletedUrls.Add(url);
-            return Task.FromResult(DeleteSucceeds);
-        }
-
-        public Task<byte[]?> TryDownloadAsync(string url, CancellationToken cancellationToken = default) =>
-            Task.FromResult<byte[]?>(null);
     }
 }

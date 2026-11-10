@@ -44,7 +44,7 @@
       <ng-container matColumnDef="pdf">
         <th mat-header-cell *matHeaderCellDef>{{ 'installations.pdf' | transloco }}</th>
         <td mat-cell *matCellDef="let installation">
-          @if (installation.reportPdfUrl) {
+          @if (installation.hasReportPdf) {
             <mat-chip class="status-chip status-chip--ready">{{ 'installations.pdfReady' | transloco }}</mat-chip>
           } @else {
             <mat-chip class="status-chip status-chip--new">{{ 'installations.pdfMissing' | transloco }}</mat-chip>

@@ -23,34 +23,41 @@ public class QuoteAttachmentService(IAppDbContext context, IFileStorageService s
 
         buffer.Position = 0;
         var path = $"quotes/{quoteId}/attachments/{Guid.NewGuid():N}-{SanitizeFileName(fileName)}";
-        var url = await storage.UploadAsync(path, buffer, detectedType, cancellationToken);
-
         var attachment = new QuoteAttachment
         {
             QuoteId = quoteId,
             FileName = fileName,
-            FileUrl = url
+            FilePath = await storage.UploadAsync(path, buffer, detectedType, cancellationToken)
         };
         context.QuoteAttachments.Add(attachment);
         await context.SaveChangesAsync(cancellationToken);
 
-        return new QuoteAttachmentDto(attachment.Id, attachment.FileName, attachment.FileUrl, attachment.UploadedAt);
+        return new QuoteAttachmentDto(attachment.Id, attachment.FileName, attachment.UploadedAt);
+    }
+
+    public async Task<string> GetUrlAsync(int quoteId, int attachmentId, CancellationToken cancellationToken = default)
+    {
+        var attachment = await FindAsync(quoteId, attachmentId, cancellationToken);
+        return await storage.CreateSignedUrlAsync(attachment.FilePath, DocumentLinks.Lifetime, cancellationToken);
     }
 
     public async Task DeleteAsync(int quoteId, int attachmentId, CancellationToken cancellationToken = default)
     {
-        // Child rows are filtered by tenant only; going through the quote applies its store filter too.
-        var attachment = await context.QuoteAttachments
-            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.QuoteId == quoteId && a.Quote.Id == quoteId, cancellationToken)
-            ?? throw new NotFoundException(nameof(QuoteAttachment), attachmentId);
+        var attachment = await FindAsync(quoteId, attachmentId, cancellationToken);
 
         context.QuoteAttachments.Remove(attachment);
         await context.SaveChangesAsync(cancellationToken);
 
         // The row is gone first: a file left behind is clutter, a row pointing at a deleted file is a
         // broken link. Best effort — a storage hiccup does not fail the request.
-        await storage.TryDeleteByUrlAsync(attachment.FileUrl, cancellationToken);
+        await storage.TryDeleteAsync(attachment.FilePath, cancellationToken);
     }
+
+    // Child rows are filtered by tenant only; going through the quote applies its store filter too.
+    private async Task<QuoteAttachment> FindAsync(int quoteId, int attachmentId, CancellationToken cancellationToken) =>
+        await context.QuoteAttachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.QuoteId == quoteId && a.Quote.Id == quoteId, cancellationToken)
+            ?? throw new NotFoundException(nameof(QuoteAttachment), attachmentId);
 
     private static string SanitizeFileName(string fileName) =>
         string.Concat(fileName.Select(c => char.IsLetterOrDigit(c) || c is '.' or '-' or '_' ? c : '-'));

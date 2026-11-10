@@ -51,7 +51,8 @@ public record QuoteDetailDto(
     string? InstallationCity,
     string? InstallationPositionNotes,
     string? FloorPlanImageUrl,
-    string? PdfUrl,
+    // Whether a customer PDF has been generated; its link comes from GET /api/quotes/{id}/pdf-url.
+    bool HasPdf,
     List<QuoteProductDto> Products,
     List<DuctedUnitDto> DuctedUnits,
     List<QuoteServiceItemDto> ServiceItems,
@@ -119,7 +120,7 @@ public record QuoteStatusEventDto(
     string? ChangedBy);
 
 /// <summary>A file attached to a quote.</summary>
-public record QuoteAttachmentDto(int Id, string FileName, string FileUrl, DateTime UploadedAt);
+public record QuoteAttachmentDto(int Id, string FileName, DateTime UploadedAt);
 
 /// <summary>One ducted indoor unit (type + vent count).</summary>
 public record DuctedUnitOutletDto(int Id, int Position, string SystemType, int VentCount);
@@ -190,3 +191,6 @@ public record RecallQuoteRequest(string? Notes);
 
 /// <summary>Public URL of a generated quote PDF.</summary>
 public record QuotePdfResponse(string Url);
+
+/// <summary>A link to a private document (PDF, photo). It expires after a few minutes: ask again rather than keep it.</summary>
+public record DocumentUrlDto(string Url);

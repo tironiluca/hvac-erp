@@ -8,6 +8,7 @@ import {
   ScheduledInstallation,
   UpsertScheduledInstallationRequest,
 } from '../models/installation.model';
+import { DocumentUrl } from '../utils/open-document';
 
 @Injectable({ providedIn: 'root' })
 export class InstallationsService {
@@ -47,7 +48,12 @@ export class InstallationsService {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 
-  /** Renders and stores the installation work order; resolves to its public URL. */
+  /** A link to the generated work order that works for a few minutes. */
+  getPdfUrl(id: number): Observable<DocumentUrl> {
+    return this.http.get<DocumentUrl>(`${this.baseUrl}/${id}/pdf-url`);
+  }
+
+  /** Renders and stores the installation work order; resolves to a link that works for a few minutes. */
   generatePdf(id: number): Observable<InstallationPdfResponse> {
     return this.http.post<InstallationPdfResponse>(`${this.baseUrl}/${id}/pdf`, {});
   }

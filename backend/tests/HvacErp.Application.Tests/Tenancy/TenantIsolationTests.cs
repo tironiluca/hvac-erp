@@ -126,17 +126,19 @@ public class TenantIsolationTests
     public async Task Lines_of_another_stores_record_are_out_of_reach()
     {
         var quote = await Quotes(_a1).CreateAsync(QuoteRequest(_clientA, _productA));
-        _a1.QuoteAttachments.Add(new QuoteAttachment { QuoteId = quote.Id, FileName = "a.jpg", FileUrl = "u" });
+        _a1.QuoteAttachments.Add(new QuoteAttachment { QuoteId = quote.Id, FileName = "a.jpg", FilePath = "quotes/a.jpg" });
         await _a1.SaveChangesAsync();
         var attachmentId = _a1.QuoteAttachments.Single().Id;
 
         await Assert.ThrowsAsync<NotFoundException>(
-            () => new QuoteAttachmentService(_a2, new NullStorage()).DeleteAsync(quote.Id, attachmentId));
+            () => new QuoteAttachmentService(_a2, new FakeStorage()).DeleteAsync(quote.Id, attachmentId));
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => new QuoteAttachmentService(_a2, new FakeStorage()).GetUrlAsync(quote.Id, attachmentId));
         await Assert.ThrowsAsync<NotFoundException>(() => Quotes(_a2).ToggleIncentiveConfirmationAsync(quote.Id, 1));
         await Assert.ThrowsAsync<NotFoundException>(
             () => new FGasRecordService(_a2).CreateAsync(new UpsertFGasRecordRequest(quote.Id, null, "R32", 1m, false, false)));
 
-        await new QuoteAttachmentService(_a1, new NullStorage()).DeleteAsync(quote.Id, attachmentId);
+        await new QuoteAttachmentService(_a1, new FakeStorage()).DeleteAsync(quote.Id, attachmentId);
     }
 
     [Fact]
@@ -229,19 +231,6 @@ public class TenantIsolationTests
 
         // Leaving the scope puts the filters back.
         Assert.Empty(await worker.Clients.ToListAsync());
-    }
-
-    private sealed class NullStorage : IFileStorageService
-    {
-        public Task<string> UploadAsync(string path, Stream content, string contentType, CancellationToken cancellationToken = default) =>
-            Task.FromResult(path);
-
-        public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task<bool> TryDeleteByUrlAsync(string url, CancellationToken cancellationToken = default) => Task.FromResult(true);
-
-        public Task<byte[]?> TryDownloadAsync(string url, CancellationToken cancellationToken = default) =>
-            Task.FromResult<byte[]?>(null);
     }
 
     private sealed class SingleConnector : IErpConnectorResolver, IErpConnector
