@@ -21,6 +21,3 @@ public record UpdatePortalBrandingRequest(
 
 /// <summary>The public URL of a freshly uploaded branding asset.</summary>
 public record BrandingAssetDto(string Url);
-
-/// <summary>The signed-in caller's app profile, for the frontend to gate admin-only UI (<c>GET /api/me</c>).</summary>
-public record CurrentUserDto(string Email, string Role);

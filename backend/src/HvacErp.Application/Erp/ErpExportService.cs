@@ -191,6 +191,9 @@ public class ErpExportService(
 
         return new ErpOrderExport
         {
+            // The export belongs to the quote's tenant and store, not to whoever triggers it.
+            TenantId = quote.TenantId,
+            StoreId = quote.StoreId,
             QuoteId = quoteId,
             Connector = connectorName,
             Status = ErpExportStatuses.Pending,

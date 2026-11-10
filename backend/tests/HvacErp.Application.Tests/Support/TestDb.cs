@@ -16,12 +16,20 @@ namespace HvacErp.Application.Tests.Support;
 /// </summary>
 public static class TestDb
 {
-    public static AppDbContext Create()
+    /// <summary>The tenant and store every test works in unless it asks for another.</summary>
+    public static readonly ITenantContext DefaultTenant = FixedTenantContext.For(Tenant.DefaultId, Store.DefaultId);
+
+    /// <summary>
+    /// A context on a fresh database working for <paramref name="tenant"/> (default: tenant 1,
+    /// store 1). Pass the same <paramref name="databaseName"/> to several calls to look at one
+    /// database as different tenants.
+    /// </summary>
+    public static AppDbContext Create(ITenantContext? tenant = null, string? databaseName = null)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase($"hvac-erp-tests-{Guid.NewGuid():N}")
+            .UseInMemoryDatabase(databaseName ?? $"hvac-erp-tests-{Guid.NewGuid():N}")
             .Options;
-        return new AppDbContext(options);
+        return new AppDbContext(options, tenant ?? DefaultTenant);
     }
 
     /// <summary>The three VAT rows exactly as seeded in production (legacy literals).</summary>
@@ -123,7 +131,7 @@ public sealed class RecordingCalendarNotifier : IInstallationCalendarNotifier
         return Task.CompletedTask;
     }
 
-    public Task InstallationDeletedAsync(int installationId, CancellationToken cancellationToken = default)
+    public Task InstallationDeletedAsync(int installationId, int storeId, CancellationToken cancellationToken = default)
     {
         Deleted.Add(installationId);
         return Task.CompletedTask;

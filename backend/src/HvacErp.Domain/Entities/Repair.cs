@@ -3,8 +3,11 @@ using HvacErp.Domain.Enums;
 namespace HvacErp.Domain.Entities;
 
 /// <summary>A repair or a periodic revision/service ("riparazione"/"revisione") — the legacy app stored both in one table distinguished by an id prefix.</summary>
-public class Repair
+public class Repair : IStoreOwned
 {
+    public int TenantId { get; set; }
+    public int StoreId { get; set; }
+
     public int Id { get; set; }
 
     public RepairType Type { get; set; }
@@ -46,8 +49,10 @@ public class Repair
 }
 
 /// <summary>An itemized labor/consumable line on a repair (from the <see cref="ServiceItem"/> price list).</summary>
-public class RepairServiceItem
+public class RepairServiceItem : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int RepairId { get; set; }
@@ -61,8 +66,10 @@ public class RepairServiceItem
 }
 
 /// <summary>A scheduled visit/appointment for a repair, optionally assigned to an installer.</summary>
-public class RepairScheduleEntry
+public class RepairScheduleEntry : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int RepairId { get; set; }

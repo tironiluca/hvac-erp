@@ -45,15 +45,15 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("email");
 
-                    b.Property<int?>("InstallerId")
-                        .HasColumnType("integer")
-                        .HasColumnName("installer_id");
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("role");
+                    b.Property<bool>("IsPlatformAdmin")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_platform_admin");
 
                     b.HasKey("Id")
                         .HasName("pk_users");
@@ -61,9 +61,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("ix_users_email");
-
-                    b.HasIndex("InstallerId")
-                        .HasDatabaseName("ix_users_installer_id");
 
                     b.ToTable("users", (string)null);
                 });
@@ -133,18 +130,22 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("tax_code");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_clients");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("ix_clients_code");
 
                     b.HasIndex("ReferredByClientId")
                         .HasDatabaseName("ix_clients_referred_by_client_id");
 
                     b.HasIndex("SourceId")
                         .HasDatabaseName("ix_clients_source_id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_clients_tenant_id_code");
 
                     b.ToTable("clients", (string)null);
                 });
@@ -163,6 +164,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)")
                         .HasColumnName("description");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
                         .HasName("pk_client_sources");
@@ -285,6 +290,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("rigid_hose_quantity");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_ducted_units");
 
@@ -316,6 +325,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("system_type");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.Property<int>("VentCount")
                         .HasColumnType("integer")
@@ -393,6 +406,14 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<int>("StoreId")
+                        .HasColumnType("integer")
+                        .HasColumnName("store_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_erp_order_exports");
 
@@ -402,6 +423,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Status", "NextAttemptAt")
                         .HasDatabaseName("ix_erp_order_exports_status_next_attempt_at");
+
+                    b.HasIndex("TenantId", "StoreId")
+                        .HasDatabaseName("ix_erp_order_exports_tenant_id_store_id");
 
                     b.ToTable("erp_order_exports", null, t =>
                         {
@@ -455,12 +479,16 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("sort_order");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_extra_types");
 
-                    b.HasIndex("Code")
+                    b.HasIndex("TenantId", "Code")
                         .IsUnique()
-                        .HasDatabaseName("ix_extra_types_code");
+                        .HasDatabaseName("ix_extra_types_tenant_id_code");
 
                     b.ToTable("extra_types", (string)null);
                 });
@@ -504,6 +532,14 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("repair_id");
 
+                    b.Property<int>("StoreId")
+                        .HasColumnType("integer")
+                        .HasColumnName("store_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_f_gas_records");
 
@@ -512,6 +548,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RepairId")
                         .HasDatabaseName("ix_f_gas_records_repair_id");
+
+                    b.HasIndex("TenantId", "StoreId")
+                        .HasDatabaseName("ix_f_gas_records_tenant_id_store_id");
 
                     b.ToTable("f_gas_records", null, t =>
                         {
@@ -608,6 +647,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("sort_order");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<decimal?>("Threshold")
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("threshold");
@@ -615,9 +658,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_incentive_schemes");
 
-                    b.HasIndex("Code")
+                    b.HasIndex("TenantId", "Code")
                         .IsUnique()
-                        .HasDatabaseName("ix_incentive_schemes_code");
+                        .HasDatabaseName("ix_incentive_schemes_tenant_id_code");
 
                     b.ToTable("incentive_schemes", null, t =>
                         {
@@ -636,6 +679,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<int>("InstallerId")
                         .HasColumnType("integer")
                         .HasColumnName("installer_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.HasKey("ScheduledInstallationId", "InstallerId")
                         .HasName("pk_installation_installers");
@@ -680,6 +727,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_installers");
 
@@ -715,6 +766,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
                         .HasName("pk_operators");
@@ -756,6 +811,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("name");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -768,14 +827,14 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_pdf_templates");
 
-                    b.HasIndex("DocumentType")
+                    b.HasIndex("TenantId", "DocumentType")
                         .IsUnique()
-                        .HasDatabaseName("ix_pdf_templates_document_type")
+                        .HasDatabaseName("ix_pdf_templates_tenant_id_document_type")
                         .HasFilter("is_active");
 
-                    b.HasIndex("DocumentType", "Name")
+                    b.HasIndex("TenantId", "DocumentType", "Name")
                         .IsUnique()
-                        .HasDatabaseName("ix_pdf_templates_document_type_name");
+                        .HasDatabaseName("ix_pdf_templates_tenant_id_document_type_name");
 
                     b.ToTable("pdf_templates", (string)null);
                 });
@@ -861,6 +920,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<int>("PriceListId")
                         .HasColumnType("integer")
                         .HasColumnName("price_list_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.Property<int>("TierOrder")
                         .HasColumnType("integer")
@@ -1010,6 +1073,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("stock_notes");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<bool>("Wifi")
                         .HasColumnType("boolean")
                         .HasColumnName("wifi");
@@ -1054,6 +1121,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("markup");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<decimal>("TransportFee")
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("transport_fee");
@@ -1090,6 +1161,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
                         .HasName("pk_product_types");
@@ -1190,6 +1265,14 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("rounding");
 
+                    b.Property<int>("StoreId")
+                        .HasColumnType("integer")
+                        .HasColumnName("store_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<string>("Vat")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -1221,9 +1304,12 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.HasIndex("Vat")
                         .HasDatabaseName("ix_quotes_vat");
 
-                    b.HasIndex("Number", "Version", "Revision")
+                    b.HasIndex("TenantId", "StoreId")
+                        .HasDatabaseName("ix_quotes_tenant_id_store_id");
+
+                    b.HasIndex("StoreId", "Number", "Version", "Revision")
                         .IsUnique()
-                        .HasDatabaseName("ix_quotes_number_version_revision");
+                        .HasDatabaseName("ix_quotes_store_id_number_version_revision");
 
                     b.ToTable("quotes", (string)null);
                 });
@@ -1252,6 +1338,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<int>("QuoteId")
                         .HasColumnType("integer")
                         .HasColumnName("quote_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.Property<DateTime>("UploadedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1324,6 +1414,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("quote_id");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("unit_price");
@@ -1373,6 +1467,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<int>("QuoteId")
                         .HasColumnType("integer")
                         .HasColumnName("quote_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.Property<decimal?>("Value")
                         .HasColumnType("numeric(12,2)")
@@ -1431,6 +1529,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("role");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_quote_products");
 
@@ -1466,6 +1568,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<int>("ServiceItemId")
                         .HasColumnType("integer")
                         .HasColumnName("service_item_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("numeric(12,2)")
@@ -1557,6 +1663,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("status");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_quote_status_events");
 
@@ -1634,6 +1744,14 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("status");
 
+                    b.Property<int>("StoreId")
+                        .HasColumnType("integer")
+                        .HasColumnName("store_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1659,6 +1777,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_repairs_status");
+
+                    b.HasIndex("TenantId", "StoreId")
+                        .HasDatabaseName("ix_repairs_tenant_id_store_id");
 
                     b.ToTable("repairs", (string)null);
                 });
@@ -1688,6 +1809,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<int>("RepairId")
                         .HasColumnType("integer")
                         .HasColumnName("repair_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.HasKey("Id")
                         .HasName("pk_repair_schedule_entries");
@@ -1721,6 +1846,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Property<int>("ServiceItemId")
                         .HasColumnType("integer")
                         .HasColumnName("service_item_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("numeric(12,2)")
@@ -1824,6 +1953,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("status");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_repair_status_events");
 
@@ -1877,6 +2010,14 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("slot");
 
+                    b.Property<int>("StoreId")
+                        .HasColumnType("integer")
+                        .HasColumnName("store_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -1894,6 +2035,9 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Slot")
                         .HasDatabaseName("ix_scheduled_installations_slot");
+
+                    b.HasIndex("TenantId", "StoreId")
+                        .HasDatabaseName("ix_scheduled_installations_tenant_id_store_id");
 
                     b.ToTable("scheduled_installations", (string)null);
                 });
@@ -1930,17 +2074,194 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("product_type_id");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
                     b.HasKey("Id")
                         .HasName("pk_service_items");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("ix_service_items_code");
 
                     b.HasIndex("ProductTypeId")
                         .HasDatabaseName("ix_service_items_product_type_id");
 
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_service_items_tenant_id_code");
+
                     b.ToTable("service_items", (string)null);
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.Store", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("phone");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stores");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_stores_tenant_id_name");
+
+                    b.ToTable("stores", (string)null);
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.StoreAccess", b =>
+                {
+                    b.Property<int>("TenantMembershipId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_membership_id");
+
+                    b.Property<int>("StoreId")
+                        .HasColumnType("integer")
+                        .HasColumnName("store_id");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("TenantMembershipId", "StoreId")
+                        .HasName("pk_store_access");
+
+                    b.HasIndex("StoreId")
+                        .HasDatabaseName("ix_store_access_store_id");
+
+                    b.ToTable("store_access", (string)null);
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.Tenant", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("LegalName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("legal_name");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("VatNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("vat_number");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenants");
+
+                    b.ToTable("tenants", (string)null);
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.TenantMembership", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AllStores")
+                        .HasColumnType("boolean")
+                        .HasColumnName("all_stores");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("InstallerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("installer_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenant_memberships");
+
+                    b.HasIndex("InstallerId")
+                        .HasDatabaseName("ix_tenant_memberships_installer_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_tenant_memberships_user_id");
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tenant_memberships_tenant_id_user_id");
+
+                    b.ToTable("tenant_memberships", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_tenant_memberships_role", "role IN ('Admin', 'Sales', 'Warehouse')");
+                        });
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.VatOption", b =>
@@ -2052,17 +2373,6 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_mock_erp_orders_external_reference");
 
                     b.ToTable("mock_erp_orders", (string)null);
-                });
-
-            modelBuilder.Entity("HvacErp.Domain.Entities.AppUser", b =>
-                {
-                    b.HasOne("HvacErp.Domain.Entities.Installer", "Installer")
-                        .WithMany()
-                        .HasForeignKey("InstallerId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_users_installers_installer_id");
-
-                    b.Navigation("Installer");
                 });
 
             modelBuilder.Entity("HvacErp.Domain.Entities.Client", b =>
@@ -2472,6 +2782,73 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
                     b.Navigation("ProductType");
                 });
 
+            modelBuilder.Entity("HvacErp.Domain.Entities.Store", b =>
+                {
+                    b.HasOne("HvacErp.Domain.Entities.Tenant", "Tenant")
+                        .WithMany("Stores")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stores_tenants_tenant_id");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.StoreAccess", b =>
+                {
+                    b.HasOne("HvacErp.Domain.Entities.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_store_access_stores_store_id");
+
+                    b.HasOne("HvacErp.Domain.Entities.TenantMembership", "Membership")
+                        .WithMany("Stores")
+                        .HasForeignKey("TenantMembershipId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_store_access_tenant_memberships_tenant_membership_id");
+
+                    b.Navigation("Membership");
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.TenantMembership", b =>
+                {
+                    b.HasOne("HvacErp.Domain.Entities.Installer", "Installer")
+                        .WithMany()
+                        .HasForeignKey("InstallerId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_tenant_memberships_installers_installer_id");
+
+                    b.HasOne("HvacErp.Domain.Entities.Tenant", "Tenant")
+                        .WithMany("Memberships")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_memberships_tenants_tenant_id");
+
+                    b.HasOne("HvacErp.Domain.Entities.AppUser", "User")
+                        .WithMany("Memberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_memberships_users_user_id");
+
+                    b.Navigation("Installer");
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.AppUser", b =>
+                {
+                    b.Navigation("Memberships");
+                });
+
             modelBuilder.Entity("HvacErp.Domain.Entities.Client", b =>
                 {
                     b.Navigation("Quotes");
@@ -2533,6 +2910,18 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("HvacErp.Domain.Entities.ScheduledInstallation", b =>
                 {
                     b.Navigation("Installers");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.Tenant", b =>
+                {
+                    b.Navigation("Memberships");
+
+                    b.Navigation("Stores");
+                });
+
+            modelBuilder.Entity("HvacErp.Domain.Entities.TenantMembership", b =>
+                {
+                    b.Navigation("Stores");
                 });
 #pragma warning restore 612, 618
         }

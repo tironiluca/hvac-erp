@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using HvacErp.Application.Erp;
 
+using HvacErp.Infrastructure.Persistence;
+
 namespace HvacErp.Infrastructure.Erp;
 
 /// <summary>
@@ -23,6 +25,8 @@ public sealed class ErpExportWorker(
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
+                // The outbox holds every tenant's orders and no caller stands behind the worker.
+                using var system = scope.ServiceProvider.GetRequiredService<AppDbContext>().AsSystem();
                 var exports = scope.ServiceProvider.GetRequiredService<IErpExportService>();
                 if (exports.Enabled)
                 {

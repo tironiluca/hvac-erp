@@ -25,11 +25,11 @@ public sealed class RedisCalendarPresenceStore(IConnectionMultiplexer redis, Tim
     private double Now => clock.GetUtcNow().ToUnixTimeMilliseconds();
 
     /// <inheritdoc />
-    public async Task AddAsync(string connectionId, CalendarPresenceDto member)
+    public async Task AddAsync(string connectionId, int tenantId, CalendarPresenceDto member)
     {
         _local[connectionId] = 0;
         var batch = Db.CreateBatch();
-        var set = batch.HashSetAsync(_membersKey, connectionId, JsonSerializer.Serialize(member));
+        var set = batch.HashSetAsync(_membersKey, connectionId, JsonSerializer.Serialize(new Entry(tenantId, member)));
         var seen = batch.SortedSetAddAsync(_seenKey, connectionId, Now);
         batch.Execute();
         await Task.WhenAll(set, seen);
@@ -47,7 +47,7 @@ public sealed class RedisCalendarPresenceStore(IConnectionMultiplexer redis, Tim
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<CalendarPresenceDto>> GetRosterAsync()
+    public async Task<IReadOnlyList<CalendarPresenceDto>> GetRosterAsync(int tenantId)
     {
         var live = await Db.SortedSetRangeByScoreAsync(_seenKey, Now - Ttl.TotalMilliseconds, double.PositiveInfinity);
         if (live.Length == 0)
@@ -56,15 +56,11 @@ public sealed class RedisCalendarPresenceStore(IConnectionMultiplexer redis, Tim
         }
 
         var values = await Db.HashGetAsync(_membersKey, live);
-        var members = values
-            .Where(v => v.HasValue)
-            .Select(v => JsonSerializer.Deserialize<CalendarPresenceDto>(v.ToString()))
-            .OfType<CalendarPresenceDto>();
-        return PresenceRoster.Collapse(members);
+        return PresenceRoster.Collapse(Entries(values).Where(e => e.TenantId == tenantId).Select(e => e.Member));
     }
 
     /// <inheritdoc />
-    public async Task<bool> HeartbeatAsync()
+    public async Task<IReadOnlyCollection<int>> HeartbeatAsync()
     {
         var db = Db;
         var now = Now;
@@ -76,11 +72,21 @@ public sealed class RedisCalendarPresenceStore(IConnectionMultiplexer redis, Tim
         var stale = await db.SortedSetRangeByScoreAsync(_seenKey, double.NegativeInfinity, now - Ttl.TotalMilliseconds);
         if (stale.Length == 0)
         {
-            return false;
+            return [];
         }
 
+        var tenants = Entries(await db.HashGetAsync(_membersKey, stale)).Select(e => e.TenantId).Distinct().ToList();
         await db.HashDeleteAsync(_membersKey, stale);
         await db.SortedSetRemoveAsync(_seenKey, stale);
-        return true;
+        return tenants;
     }
+
+    private static IEnumerable<Entry> Entries(RedisValue[] values) =>
+        values
+            .Where(v => v.HasValue)
+            .Select(v => JsonSerializer.Deserialize<Entry>(v.ToString()))
+            .OfType<Entry>()
+            .Where(e => e.Member is not null);
+
+    private sealed record Entry(int TenantId, CalendarPresenceDto Member);
 }

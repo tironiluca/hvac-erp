@@ -28,7 +28,7 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
     public partial class EnableRowLevelSecurity : Migration
     {
         /// <summary>Catalogue/lookup data: any signed-in user reads, only Admin writes.</summary>
-        private static readonly string[] ReferenceTables =
+        internal static readonly string[] ReferenceTables =
         [
             "client_sources", "day_slots", "duct_system_types", "extra_types", "installers", "operators",
             "price_list_discount_tiers", "product_price_lists", "product_types", "products",
@@ -36,7 +36,7 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
         ];
 
         /// <summary>Business records: any signed-in user reads, Sales/Admin write (mirrors the SalesOrAdmin policy).</summary>
-        private static readonly string[] BusinessTables =
+        internal static readonly string[] BusinessTables =
         [
             "clients", "quotes", "quote_products", "ducted_units", "ducted_unit_outlets", "quote_service_items",
             "quote_extras", "quote_attachments", "repairs", "repair_service_items", "repair_schedule_entries",
@@ -44,10 +44,10 @@ namespace HvacErp.Infrastructure.Persistence.Migrations
         ];
 
         /// <summary>Append-only history: read + insert only, never updated or deleted directly.</summary>
-        private static readonly string[] AppendOnlyTables = ["quote_status_events", "repair_status_events"];
+        internal static readonly string[] AppendOnlyTables = ["quote_status_events", "repair_status_events"];
 
         /// <summary>Portal settings: any signed-in user reads, only Admin writes (mirrors the AdminOnly policy).</summary>
-        private static readonly string[] SettingsTables = ["portal_brandings", "pdf_templates"];
+        internal static readonly string[] SettingsTables = ["portal_brandings", "pdf_templates"];
 
         private const string UsersTable = "users";
         private const string MigrationsHistoryTable = "__EFMigrationsHistory";

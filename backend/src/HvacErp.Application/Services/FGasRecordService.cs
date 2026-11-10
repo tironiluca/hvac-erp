@@ -36,20 +36,23 @@ public class FGasRecordService(IAppDbContext context) : IFGasRecordService
             throw new BusinessRuleException("An F-Gas record must be linked to exactly one of a quote or a repair.");
         }
 
+        // A record lives in the store of the quote or repair it documents.
+        var storeId = 0;
         if (request.QuoteId is { } quoteId)
         {
-            _ = await context.Quotes.FindAsync([quoteId], cancellationToken)
-                ?? throw new NotFoundException(nameof(Quote), quoteId);
+            storeId = (await context.Quotes.FirstOrDefaultAsync(q => q.Id == quoteId, cancellationToken)
+                ?? throw new NotFoundException(nameof(Quote), quoteId)).StoreId;
         }
 
         if (request.RepairId is { } repairId)
         {
-            _ = await context.Repairs.FindAsync([repairId], cancellationToken)
-                ?? throw new NotFoundException(nameof(Repair), repairId);
+            storeId = (await context.Repairs.FirstOrDefaultAsync(r => r.Id == repairId, cancellationToken)
+                ?? throw new NotFoundException(nameof(Repair), repairId)).StoreId;
         }
 
         var record = new FGasRecord
         {
+            StoreId = storeId,
             QuoteId = request.QuoteId,
             RepairId = request.RepairId,
             GasType = request.GasType,

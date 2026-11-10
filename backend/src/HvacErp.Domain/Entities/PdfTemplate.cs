@@ -9,8 +9,10 @@ namespace HvacErp.Domain.Entities;
 /// <c>HvacErp.Application.Pdf.PdfTemplateDefinition</c> (stored as <c>jsonb</c>); adding a
 /// field to that shape is not a schema migration.
 /// </summary>
-public class PdfTemplate
+public class PdfTemplate : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     /// <summary>Which PDF this template lays out. A row's <see cref="DocumentType"/> never changes after creation.</summary>

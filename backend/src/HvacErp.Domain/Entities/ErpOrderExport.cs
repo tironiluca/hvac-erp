@@ -5,8 +5,11 @@ namespace HvacErp.Domain.Entities;
 /// transaction as the confirmation, so nothing is lost while the ERP is unreachable; a background
 /// worker sends due rows and records the outcome. One row per quote.
 /// </summary>
-public class ErpOrderExport
+public class ErpOrderExport : IStoreOwned
 {
+    public int TenantId { get; set; }
+    public int StoreId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }

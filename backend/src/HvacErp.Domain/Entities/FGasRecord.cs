@@ -4,8 +4,11 @@ namespace HvacErp.Domain.Entities;
 /// F-Gas (EU refrigerant-handling regulation) compliance record. The legacy app had a menu
 /// entry for this but no implementation behind it — this is designed fresh, not migrated.
 /// </summary>
-public class FGasRecord
+public class FGasRecord : IStoreOwned
 {
+    public int TenantId { get; set; }
+    public int StoreId { get; set; }
+
     public int Id { get; set; }
 
     public int? QuoteId { get; set; }

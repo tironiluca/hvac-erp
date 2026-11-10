@@ -7,8 +7,11 @@ namespace HvacErp.Domain.Entities;
 /// (<see cref="Id"/>) plus a human-facing Number/Version/Revision triplet, replacing
 /// the legacy app's single 8-character string encoding all three.
 /// </summary>
-public class Quote
+public class Quote : IStoreOwned
 {
+    public int TenantId { get; set; }
+    public int StoreId { get; set; }
+
     public int Id { get; set; }
 
     public int Number { get; set; }
@@ -85,8 +88,10 @@ public class Quote
 }
 
 /// <summary>A unit (external condenser or internal split) included in a quote.</summary>
-public class QuoteProduct
+public class QuoteProduct : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }
@@ -103,8 +108,10 @@ public class QuoteProduct
 
 /// <summary>Ducted ("canalizzato") system configuration for one quote — the shared plenum/hose/remote
 /// counts plus a row per ducted indoor unit in <see cref="Outlets"/>.</summary>
-public class DuctedUnit
+public class DuctedUnit : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }
@@ -127,8 +134,10 @@ public class DuctedUnit
 /// type and its own vent count, both of which feed the per-outlet ducted-system price formula
 /// (legacy <c>InsPrev.vb</c> <c>calcolaPrezzo</c> loops these per <c>cmbCan{n}</c>).
 /// </summary>
-public class DuctedUnitOutlet
+public class DuctedUnitOutlet : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int DuctedUnitId { get; set; }
@@ -145,8 +154,10 @@ public class DuctedUnitOutlet
 }
 
 /// <summary>An itemized labor/consumable line on a quote (from the <see cref="ServiceItem"/> price list).</summary>
-public class QuoteServiceItem
+public class QuoteServiceItem : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }
@@ -164,8 +175,10 @@ public class QuoteServiceItem
 /// Replaces the legacy <c>Preventivi</c> fixed <c>Ponteggio</c>/<c>Autoscala</c>/… bool+meters columns:
 /// a new extra the business needs later is an <see cref="ExtraType"/> row, not a schema change.
 /// </summary>
-public class QuoteExtra
+public class QuoteExtra : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }
@@ -187,8 +200,10 @@ public class QuoteExtra
 /// <c>Confirmed</c>/<c>ConfirmedDate</c> column pairs (and the legacy <c>StatoPreventivi</c>/
 /// <c>DatePreventivi</c> satellite tables they descend from).
 /// </summary>
-public class QuoteStatusEvent
+public class QuoteStatusEvent : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }
@@ -204,8 +219,10 @@ public class QuoteStatusEvent
 }
 
 /// <summary>A photo or floor plan uploaded against a quote, stored in Supabase Storage.</summary>
-public class QuoteAttachment
+public class QuoteAttachment : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }

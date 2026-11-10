@@ -14,14 +14,23 @@ public class QuoteNumberingService(IAppDbContext context) : IQuoteNumberingServi
         var externalProductId = quote.Products
             .FirstOrDefault(p => p.Role == ProductRole.ExternalUnit)?.ProductId;
 
+        // Numbers, versions and revisions run per store: a client quoted in two stores has two series.
+        if (quote.StoreId == 0)
+        {
+            quote.StoreId = context.Tenant.RequireStoreId();
+        }
+
         var existingForClient = await context.Quotes
-            .Where(q => q.ClientId == quote.ClientId)
+            .Where(q => q.StoreId == quote.StoreId && q.ClientId == quote.ClientId)
             .Include(q => q.Products)
             .ToListAsync(cancellationToken);
 
         if (existingForClient.Count == 0)
         {
-            var maxNumber = await context.Quotes.Select(q => (int?)q.Number).MaxAsync(cancellationToken) ?? 0;
+            var maxNumber = await context.Quotes
+                .Where(q => q.StoreId == quote.StoreId)
+                .Select(q => (int?)q.Number)
+                .MaxAsync(cancellationToken) ?? 0;
             quote.Number = maxNumber + 1;
             quote.Version = 1;
             quote.Revision = 0;

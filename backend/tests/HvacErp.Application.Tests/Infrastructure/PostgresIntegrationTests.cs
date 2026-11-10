@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using HvacErp.Application.Pdf;
 using HvacErp.Application.Pricing;
 using HvacErp.Application.Services;
+using HvacErp.Application.Tests.Support;
 using HvacErp.Domain.Entities;
 using HvacErp.Infrastructure.Persistence;
 using HvacErp.Infrastructure.Persistence.Seed;
@@ -30,7 +31,7 @@ public class PostgresIntegrationTests
             .UseSnakeCaseNamingConvention()
             .Options;
 
-        await using var db = new AppDbContext(options);
+        await using var db = new AppDbContext(options, TestDb.DefaultTenant);
         try
         {
             await db.Database.MigrateAsync();
@@ -65,7 +66,7 @@ public class PostgresIntegrationTests
             .UseSnakeCaseNamingConvention()
             .Options;
 
-        await using var db = new AppDbContext(options);
+        await using var db = new AppDbContext(options, TestDb.DefaultTenant);
         try
         {
             var migrator = db.GetService<IMigrator>();
@@ -133,7 +134,7 @@ public class PostgresIntegrationTests
             .UseSnakeCaseNamingConvention()
             .Options;
 
-        await using var db = new AppDbContext(options);
+        await using var db = new AppDbContext(options, TestDb.DefaultTenant);
         try
         {
             var migrator = db.GetService<IMigrator>();

@@ -3,8 +3,9 @@ using HvacErp.Application.Dtos;
 namespace HvacErp.Api.Hubs.Presence;
 
 /// <summary>
-/// Who currently has the shared installation calendar open, keyed by SignalR connection id. The
-/// roster collapses a person's multiple tabs into one entry and is ordered by name.
+/// Who currently has the shared installation calendar open, keyed by SignalR connection id and
+/// kept per tenant: a roster only ever lists colleagues. It collapses a person's multiple tabs into
+/// one entry and is ordered by name.
 /// <para>
 /// <see cref="InMemoryCalendarPresenceStore"/> is exact for a single API instance;
 /// <see cref="RedisCalendarPresenceStore"/> shares the roster across instances (enabled together
@@ -13,21 +14,21 @@ namespace HvacErp.Api.Hubs.Presence;
 /// </summary>
 public interface ICalendarPresenceStore
 {
-    /// <summary>Records a connection as present.</summary>
-    Task AddAsync(string connectionId, CalendarPresenceDto member);
+    /// <summary>Records a connection as present in <paramref name="tenantId"/>.</summary>
+    Task AddAsync(string connectionId, int tenantId, CalendarPresenceDto member);
 
     /// <summary>Forgets a connection.</summary>
     Task RemoveAsync(string connectionId);
 
-    /// <summary>The de-duplicated roster of live viewers.</summary>
-    Task<IReadOnlyList<CalendarPresenceDto>> GetRosterAsync();
+    /// <summary>The de-duplicated roster of <paramref name="tenantId"/>'s live viewers.</summary>
+    Task<IReadOnlyList<CalendarPresenceDto>> GetRosterAsync(int tenantId);
 
     /// <summary>
     /// Periodic upkeep run by <see cref="PresenceHeartbeatService"/>: refreshes this instance's
     /// connections and drops entries whose instance stopped refreshing (crashed / scaled in).
     /// </summary>
-    /// <returns>True when stale entries were dropped, i.e. the roster changed.</returns>
-    Task<bool> HeartbeatAsync();
+    /// <returns>The tenants whose roster changed because stale entries were dropped.</returns>
+    Task<IReadOnlyCollection<int>> HeartbeatAsync();
 }
 
 internal static class PresenceRoster

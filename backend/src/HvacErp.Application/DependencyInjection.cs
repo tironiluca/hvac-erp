@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<IPdfTemplateService, PdfTemplateService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IErpExportService, ErpExportService>();
+        services.AddScoped<IAccessService, AccessService>();
         services.TryAddSingleton(TimeProvider.System);
 
         return services;

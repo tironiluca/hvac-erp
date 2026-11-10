@@ -14,7 +14,7 @@ public class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
     private ClaimsPrincipal? Principal => accessor.HttpContext?.User;
 
     public string? Id =>
-        Principal?.FindFirstValue("app_user_id")
+        Principal?.FindFirstValue(AppClaimTypes.UserId)
         ?? Principal?.FindFirstValue("sub")
         ?? Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
 

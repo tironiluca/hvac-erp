@@ -42,7 +42,8 @@ public class QuoteService(
         _ = await context.Clients.FindAsync([request.ClientId], cancellationToken)
             ?? throw new NotFoundException(nameof(Client), request.ClientId);
 
-        var quote = new Quote { ClientId = request.ClientId };
+        // The store is decided first: without one there is nothing to price or number against.
+        var quote = new Quote { ClientId = request.ClientId, StoreId = context.Tenant.RequireStoreId() };
         await ApplyRequestAsync(quote, request, cancellationToken);
 
         await numbering.AssignNumberingAsync(quote, cancellationToken);
@@ -131,7 +132,8 @@ public class QuoteService(
         currentUser.EnsureInRole("change an incentive confirmation", UserRole.Sales, UserRole.Admin);
         var incentive = await context.QuoteIncentives
             .Include(i => i.IncentiveScheme)
-            .FirstOrDefaultAsync(i => i.QuoteId == id && i.IncentiveSchemeId == schemeId, cancellationToken)
+            // Through the quote, so its store filter applies (child rows are filtered by tenant only).
+            .FirstOrDefaultAsync(i => i.Quote.Id == id && i.IncentiveSchemeId == schemeId, cancellationToken)
             ?? throw new NotFoundException(nameof(QuoteIncentive), $"{id}/{schemeId}");
 
         if (!incentive.IncentiveScheme.RequiresConfirmation)

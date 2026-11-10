@@ -6,7 +6,7 @@ using HvacErp.Application.Interfaces;
 
 namespace HvacErp.Api.Controllers;
 
-/// <summary>White-label portal branding (<c>/api/branding</c>): anonymous read for first paint, Admin-only edit and asset upload.</summary>
+/// <summary>White-label portal branding (<c>/api/branding</c>): anonymous read for first paint; edit and asset upload by a platform administrator, because the branding is shared by every tenant until it becomes a per-tenant setting.</summary>
 [ApiController]
 [Authorize]
 [Route("api/branding")]
@@ -18,16 +18,16 @@ public class BrandingController(IBrandingService branding) : ControllerBase
     public async Task<ActionResult<PortalBrandingDto>> Get(CancellationToken cancellationToken) =>
         Ok(await branding.GetAsync(cancellationToken));
 
-    /// <summary>Replaces the brand colours, title and asset URLs. Admin only.</summary>
+    /// <summary>Replaces the brand colours, title and asset URLs. Platform administrator only.</summary>
     [HttpPut]
-    [Authorize(Policy = Policies.AdminOnly)]
+    [Authorize(Policy = Policies.PlatformAdmin)]
     public async Task<ActionResult<PortalBrandingDto>> Update(
         UpdatePortalBrandingRequest request, CancellationToken cancellationToken) =>
         Ok(await branding.UpdateAsync(request, cancellationToken));
 
-    /// <summary>Uploads a logo / dark logo / favicon / login background (<paramref name="kind"/>) to storage and links it to the branding record. Admin only; 5 MB max.</summary>
+    /// <summary>Uploads a logo / dark logo / favicon / login background (<paramref name="kind"/>) to storage and links it to the branding record. Platform administrator only; 5 MB max.</summary>
     [HttpPost("assets/{kind}")]
-    [Authorize(Policy = Policies.AdminOnly)]
+    [Authorize(Policy = Policies.PlatformAdmin)]
     [RequestSizeLimit(5_000_000)]
     public async Task<ActionResult<BrandingAssetDto>> UploadAsset(
         string kind, IFormFile file, CancellationToken cancellationToken)

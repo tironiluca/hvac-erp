@@ -10,14 +10,9 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
     public void Configure(EntityTypeBuilder<AppUser> builder)
     {
         builder.HasIndex(u => u.Email).IsUnique();
-        builder.Property(u => u.Role).HasConversion<string>().HasMaxLength(20);
         builder.Property(u => u.Email).HasMaxLength(200);
         builder.Property(u => u.DisplayName).HasMaxLength(200);
-
-        builder.HasOne(u => u.Installer)
-            .WithMany()
-            .HasForeignKey(u => u.InstallerId)
-            .OnDelete(DeleteBehavior.SetNull);
+        builder.Property(u => u.IsActive).HasDefaultValue(true);
     }
 }
 
@@ -92,7 +87,7 @@ public class ExtraTypeConfiguration : IEntityTypeConfiguration<ExtraType>
 {
     public void Configure(EntityTypeBuilder<ExtraType> builder)
     {
-        builder.HasIndex(e => e.Code).IsUnique();
+        builder.HasIndex(e => new { e.TenantId, e.Code }).IsUnique();
         builder.Property(e => e.Code).HasMaxLength(50).IsRequired();
         builder.Property(e => e.Label).HasMaxLength(150).IsRequired();
         builder.Property(e => e.Description).HasMaxLength(500);
@@ -106,7 +101,7 @@ public class ServiceItemConfiguration : IEntityTypeConfiguration<ServiceItem>
     {
         builder.Property(s => s.Name).HasMaxLength(150).IsRequired();
         builder.Property(s => s.Code).HasMaxLength(50);
-        builder.HasIndex(s => s.Code).IsUnique();
+        builder.HasIndex(s => new { s.TenantId, s.Code }).IsUnique();
 
         builder.HasOne(s => s.ProductType)
             .WithMany()
@@ -164,10 +159,10 @@ public class PdfTemplateConfiguration : IEntityTypeConfiguration<PdfTemplate>
         builder.Property(t => t.UpdatedBy).HasMaxLength(200);
 
         // One template per document type carries the layout the generator renders against.
-        builder.HasIndex(t => t.DocumentType)
+        builder.HasIndex(t => new { t.TenantId, t.DocumentType })
             .IsUnique()
             .HasFilter("is_active");
 
-        builder.HasIndex(t => new { t.DocumentType, t.Name }).IsUnique();
+        builder.HasIndex(t => new { t.TenantId, t.DocumentType, t.Name }).IsUnique();
     }
 }

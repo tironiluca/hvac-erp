@@ -6,8 +6,10 @@ namespace HvacErp.Domain.Entities;
 /// amount is calculated: <see cref="Kind"/> picks one of the built-in calculations and the
 /// parameter columns feed it, so a rate or threshold change is a row edit, not a release.
 /// </summary>
-public class IncentiveScheme
+public class IncentiveScheme : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     /// <summary>Stable machine key (e.g. <c>INVOICE_DISCOUNT_50</c>).</summary>
@@ -107,8 +109,10 @@ public static class AmountModes
 }
 
 /// <summary>An <see cref="IncentiveScheme"/> on a quote.</summary>
-public class QuoteIncentive
+public class QuoteIncentive : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }

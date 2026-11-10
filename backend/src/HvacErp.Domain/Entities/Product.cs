@@ -6,8 +6,10 @@ namespace HvacErp.Domain.Entities;
 /// is decided by <see cref="QuoteProduct.Role"/>, not by a field here — the same
 /// catalog doubles as both lists in the legacy app.
 /// </summary>
-public class Product
+public class Product : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int PriceListId { get; set; }

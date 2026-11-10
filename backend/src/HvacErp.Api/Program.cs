@@ -69,6 +69,8 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Exposes the current request's authenticated principal to Application services (audit stamping).
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+// Which tenant and stores the request works in; read by the database context on every query and save.
+builder.Services.AddScoped<ITenantContext, RequestTenantContext>();
 
 // SignalR-backed implementation of the Application-layer calendar broadcast port.
 builder.Services.AddScoped<IInstallationCalendarNotifier, InstallationCalendarNotifier>();
@@ -137,26 +139,32 @@ builder.Services.AddAuthorizationBuilder().AddAppPolicies();
 
 var app = builder.Build();
 
+// Seed commands write through a context fixed on one tenant and its first store: the first tenant
+// (the one the migration creates) unless `--tenant <id>` names another.
 // `seed-demo` layers a large, interlinked demo/test dataset (clients, quotes, repairs,
 // installations, F-Gas records) on top of the lookup seed. Idempotent — see DemoDataSeeder.
-if (args.Contains("seed-demo", StringComparer.OrdinalIgnoreCase))
+var seedDemo = args.Contains("seed-demo", StringComparer.OrdinalIgnoreCase);
+if (seedDemo || args.Contains("seed", StringComparer.OrdinalIgnoreCase))
 {
-    using var scope = app.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var storageUrl = builder.Configuration["Supabase:Url"];
-    var bucket = builder.Configuration["Supabase:StorageBucket"];
-    var demoAssets = string.IsNullOrWhiteSpace(storageUrl) || string.IsNullOrWhiteSpace(bucket)
-        ? null
-        : $"{storageUrl.TrimEnd('/')}/storage/v1/object/public/{bucket}/demo";
-    await DemoDataSeeder.SeedAsync(context, demoAssets);
-    return;
-}
+    var tenantArg = Array.FindIndex(args, a => string.Equals(a, "--tenant", StringComparison.OrdinalIgnoreCase));
+    int? seedTenantId = tenantArg >= 0 && tenantArg + 1 < args.Length && int.TryParse(args[tenantArg + 1], out var parsed) ? parsed : null;
 
-if (args.Contains("seed", StringComparer.OrdinalIgnoreCase))
-{
     using var scope = app.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DevDataSeeder.SeedAsync(context);
+    await using var context = await SeedContext.CreateAsync(scope.ServiceProvider, seedTenantId);
+    if (seedDemo)
+    {
+        var storageUrl = builder.Configuration["Supabase:Url"];
+        var bucket = builder.Configuration["Supabase:StorageBucket"];
+        var demoAssets = string.IsNullOrWhiteSpace(storageUrl) || string.IsNullOrWhiteSpace(bucket)
+            ? null
+            : $"{storageUrl.TrimEnd('/')}/storage/v1/object/public/{bucket}/demo";
+        await DemoDataSeeder.SeedAsync(context, demoAssets);
+    }
+    else
+    {
+        await DevDataSeeder.SeedAsync(context);
+    }
+
     return;
 }
 

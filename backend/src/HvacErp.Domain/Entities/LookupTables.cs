@@ -75,8 +75,10 @@ public class DaySlot : LookupBase
 /// One append-only entry in a repair's status history — mirrors <see cref="QuoteStatusEvent"/>.
 /// <c>RepairService.ChangeStatusAsync</c> writes one row per transition.
 /// </summary>
-public class RepairStatusEvent
+public class RepairStatusEvent : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int RepairId { get; set; }

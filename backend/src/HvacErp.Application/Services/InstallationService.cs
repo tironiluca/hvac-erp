@@ -57,7 +57,8 @@ public class InstallationService(
             throw new BusinessRuleException("This quote already has a scheduled installation — update it instead of creating a new one.");
         }
 
-        var installation = new ScheduledInstallation { QuoteId = request.QuoteId };
+        // An installation lives in its quote's store, whichever store the caller has selected.
+        var installation = new ScheduledInstallation { QuoteId = request.QuoteId, StoreId = quote.StoreId };
         installation.Notes = request.Notes;
         installation.FloorPlanSketchJson = FloorPlanSketchValidator.Validate(request.FloorPlanSketch);
         await ApplyScheduleAsync(installation, request.Date, request.Slot, request.InstallerIds, cancellationToken);
@@ -122,7 +123,7 @@ public class InstallationService(
         context.ScheduledInstallations.Remove(installation);
         await context.SaveChangesAsync(cancellationToken);
 
-        await notifier.InstallationDeletedAsync(id, cancellationToken);
+        await notifier.InstallationDeletedAsync(id, installation.StoreId, cancellationToken);
     }
 
     private static void ValidateNotInThePast(DateTime date)
@@ -179,6 +180,7 @@ public class InstallationService(
 
     private static ScheduledInstallationDto ToDto(ScheduledInstallation s) => new(
         s.Id,
+        s.StoreId,
         s.QuoteId,
         s.Quote.DisplayNumber(),
         s.Quote.Client.FullName,

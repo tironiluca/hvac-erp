@@ -1,26 +1,22 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HvacErp.Api.Authorization;
 using HvacErp.Application.Dtos;
-using HvacErp.Domain.Enums;
+using HvacErp.Application.Interfaces;
 
 namespace HvacErp.Api.Controllers;
 
 /// <summary>
-/// The signed-in caller's app profile, built from the claims left by
-/// <c>SupabaseUserClaimsTransformation</c>. The frontend uses <c>role</c> to gate admin-only UI.
+/// The signed-in caller's profile. The one business endpoint that answers someone with no tenant:
+/// the frontend needs it to say "you have no access yet" and to offer the tenant / store switcher.
 /// </summary>
 [ApiController]
-[Authorize]
+[Authorize(Policy = Policies.SignedIn)]
 [Route("api/me")]
-public class MeController : ControllerBase
+public class MeController(IAccessService access) : ControllerBase
 {
-    /// <summary>The caller's email and app role (<c>Admin</c> / <c>Sales</c> / <c>Warehouse</c>), used to gate UI.</summary>
+    /// <summary>The caller's e-mail, their role in the current tenant, the current tenant and store, and every tenant and store they may switch to.</summary>
     [HttpGet]
-    public ActionResult<CurrentUserDto> Get()
-    {
-        var email = User.FindFirstValue("email") ?? string.Empty;
-        var role = User.FindFirstValue(ClaimTypes.Role) ?? nameof(UserRole.Sales);
-        return Ok(new CurrentUserDto(email, role));
-    }
+    public async Task<ActionResult<CurrentUserDto>> Get(CancellationToken cancellationToken) =>
+        Ok(await access.GetCurrentUserAsync(cancellationToken));
 }

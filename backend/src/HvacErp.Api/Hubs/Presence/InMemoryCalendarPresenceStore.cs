@@ -6,12 +6,12 @@ namespace HvacErp.Api.Hubs.Presence;
 /// <summary>Process-local presence (default). Exact only while the API runs a single instance.</summary>
 public sealed class InMemoryCalendarPresenceStore : ICalendarPresenceStore
 {
-    private readonly ConcurrentDictionary<string, CalendarPresenceDto> _members = new();
+    private readonly ConcurrentDictionary<string, (int TenantId, CalendarPresenceDto Member)> _members = new();
 
     /// <inheritdoc />
-    public Task AddAsync(string connectionId, CalendarPresenceDto member)
+    public Task AddAsync(string connectionId, int tenantId, CalendarPresenceDto member)
     {
-        _members[connectionId] = member;
+        _members[connectionId] = (tenantId, member);
         return Task.CompletedTask;
     }
 
@@ -23,9 +23,9 @@ public sealed class InMemoryCalendarPresenceStore : ICalendarPresenceStore
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<CalendarPresenceDto>> GetRosterAsync() =>
-        Task.FromResult(PresenceRoster.Collapse(_members.Values));
+    public Task<IReadOnlyList<CalendarPresenceDto>> GetRosterAsync(int tenantId) =>
+        Task.FromResult(PresenceRoster.Collapse(_members.Values.Where(m => m.TenantId == tenantId).Select(m => m.Member)));
 
     /// <inheritdoc />
-    public Task<bool> HeartbeatAsync() => Task.FromResult(false);
+    public Task<IReadOnlyCollection<int>> HeartbeatAsync() => Task.FromResult<IReadOnlyCollection<int>>([]);
 }

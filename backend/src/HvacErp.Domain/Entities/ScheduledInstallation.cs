@@ -3,8 +3,11 @@ using HvacErp.Domain.Enums;
 namespace HvacErp.Domain.Entities;
 
 /// <summary>A confirmed quote scheduled for on-site installation.</summary>
-public class ScheduledInstallation
+public class ScheduledInstallation : IStoreOwned
 {
+    public int TenantId { get; set; }
+    public int StoreId { get; set; }
+
     public int Id { get; set; }
 
     public int QuoteId { get; set; }
@@ -35,8 +38,10 @@ public class ScheduledInstallation
 }
 
 /// <summary>Crew assignment join — an installer working a given scheduled installation.</summary>
-public class InstallationInstaller
+public class InstallationInstaller : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int ScheduledInstallationId { get; set; }
     public ScheduledInstallation ScheduledInstallation { get; set; } = null!;
 

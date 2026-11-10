@@ -9,7 +9,8 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
 {
     public void Configure(EntityTypeBuilder<Client> builder)
     {
-        builder.HasIndex(c => c.Code).IsUnique();
+        // Client codes are unique within a company.
+        builder.HasIndex(c => new { c.TenantId, c.Code }).IsUnique();
         builder.Property(c => c.Code).HasMaxLength(20).IsRequired();
         builder.Property(c => c.FullName).HasMaxLength(200).IsRequired();
         builder.Property(c => c.TaxCode).HasMaxLength(20);

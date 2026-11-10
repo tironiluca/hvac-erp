@@ -11,6 +11,8 @@ public record CalendarPresenceDto(string Id, string Name);
 /// <summary>A scheduled installation as shown on the calendar; <c>RowVersion</c> is the optimistic-concurrency token.</summary>
 public record ScheduledInstallationDto(
     int Id,
+    // The store the installation belongs to (its quote's store).
+    int StoreId,
     int QuoteId,
     string QuoteNumber,
     string ClientName,

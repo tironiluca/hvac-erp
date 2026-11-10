@@ -1,8 +1,10 @@
 namespace HvacErp.Domain.Entities;
 
 /// <summary>A customer (legacy <c>Anagrafica</c>), optionally referred by another client.</summary>
-public class Client
+public class Client : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
     public string Code { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;

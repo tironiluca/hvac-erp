@@ -1,18 +1,81 @@
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Microsoft.Extensions.DependencyInjection;
 using HvacErp.Application.Common;
 using HvacErp.Infrastructure.Erp;
 using HvacErp.Domain.Entities;
 
 namespace HvacErp.Infrastructure.Persistence;
 
-/// <summary>EF Core context over Supabase Postgres; implements <see cref="Application.Common.IAppDbContext"/> and stores every <see cref="DateTime"/> as UTC.</summary>
+/// <summary>
+/// EF Core context over Supabase Postgres; implements <see cref="Application.Common.IAppDbContext"/>
+/// and stores every <see cref="DateTime"/> as UTC.
+/// <para>
+/// <b>Tenant isolation lives here.</b> Every <see cref="ITenantOwned"/> entity gets a global query
+/// filter on the <see cref="ITenantContext"/>'s tenant (and, for <see cref="IStoreOwned"/>, its
+/// stores); every save stamps the tenant / store on new rows and refuses a write into another
+/// tenant. A context without a tenant sees no tenant-owned row and can insert none — the safe
+/// default for anything that forgot to say who it works for.
+/// </para>
+/// </summary>
 public class AppDbContext : DbContext, IAppDbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    private readonly ITenantContext _tenant;
+    private int _systemScopes;
+
+    /// <summary>A context with no tenant: tenant-owned sets read empty and refuse inserts.</summary>
+    public AppDbContext(DbContextOptions<AppDbContext> options) : this(options, FixedTenantContext.None)
     {
     }
 
+    /// <summary>A context working for <paramref name="tenant"/> (resolved per request by the API).</summary>
+    [ActivatorUtilitiesConstructor]
+    public AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant) : base(options)
+    {
+        _tenant = tenant;
+    }
+
+    /// <inheritdoc />
+    public ITenantContext Tenant => _tenant;
+
+    // Read by the global query filters; EF evaluates context members per query, so one cached
+    // model serves every tenant.
+    private bool TenantFilterOff => _systemScopes > 0 || _tenant.IsSystem;
+    private int CurrentTenantId => _tenant.TenantId ?? 0;
+    private int[] CurrentStoreIds => _tenant.StoreIds as int[] ?? [.. _tenant.StoreIds];
+
+    /// <summary>
+    /// Switches this context to the trusted cross-tenant mode until the returned scope is disposed:
+    /// filters off, nothing stamped, so every row written must carry its tenant. For in-process code
+    /// with no caller behind it (outbox workers, sign-in resolution, seeding) — never for a request's
+    /// business logic, which is why it is not on <see cref="IAppDbContext"/>.
+    /// </summary>
+    public IDisposable AsSystem()
+    {
+        _systemScopes++;
+        return new SystemScope(this);
+    }
+
+    private sealed class SystemScope(AppDbContext context) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                context._systemScopes--;
+            }
+        }
+    }
+
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<Store> Stores => Set<Store>();
+    public DbSet<TenantMembership> TenantMemberships => Set<TenantMembership>();
+    public DbSet<StoreAccess> StoreAccesses => Set<StoreAccess>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Installer> Installers => Set<Installer>();
     public DbSet<Operator> Operators => Set<Operator>();
@@ -61,6 +124,115 @@ public class AppDbContext : DbContext, IAppDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes().Select(e => e.ClrType).ToList())
+        {
+            var filter = typeof(IStoreOwned).IsAssignableFrom(entityType) ? nameof(ApplyStoreFilter)
+                : typeof(ITenantOwned).IsAssignableFrom(entityType) ? nameof(ApplyTenantFilter)
+                : null;
+            if (filter is not null)
+            {
+                typeof(AppDbContext).GetMethod(filter, BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .MakeGenericMethod(entityType)
+                    .Invoke(this, [modelBuilder]);
+            }
+        }
+    }
+
+    private void ApplyTenantFilter<T>(ModelBuilder modelBuilder) where T : class, ITenantOwned =>
+        modelBuilder.Entity<T>()
+            .HasQueryFilter(e => TenantFilterOff || e.TenantId == CurrentTenantId);
+
+    private void ApplyStoreFilter<T>(ModelBuilder modelBuilder) where T : class, IStoreOwned =>
+        modelBuilder.Entity<T>()
+            .HasQueryFilter(e => TenantFilterOff || (e.TenantId == CurrentTenantId && CurrentStoreIds.Contains(e.StoreId)))
+            .HasIndex(e => new { e.TenantId, e.StoreId });
+
+    /// <inheritdoc />
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplyTenantRules();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    /// <inheritdoc />
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        ApplyTenantRules();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// Stamps the tenant (and store) on new rows and refuses any write outside the caller's tenant
+    /// and stores. The query filters already keep foreign rows out of reach; this catches the cases
+    /// a filter cannot — an id set by hand, an attached entity, a row moved between tenants.
+    /// </summary>
+    private void ApplyTenantRules()
+    {
+        var system = TenantFilterOff;
+        foreach (var entry in ChangeTracker.Entries<ITenantOwned>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added when system:
+                    if (entry.Entity.TenantId == 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"{entry.Metadata.ClrType.Name} was added in the system context without a tenant.");
+                    }
+                    break;
+                case EntityState.Added:
+                    StampNew(entry);
+                    break;
+                case EntityState.Modified or EntityState.Deleted when !system:
+                    GuardExisting(entry);
+                    break;
+            }
+        }
+    }
+
+    private void StampNew(EntityEntry<ITenantOwned> entry)
+    {
+        var tenantId = _tenant.RequireTenantId();
+        if (entry.Entity.TenantId == 0)
+        {
+            entry.Entity.TenantId = tenantId;
+        }
+        else if (entry.Entity.TenantId != tenantId)
+        {
+            throw new ForbiddenException("You cannot write to another company's data.");
+        }
+
+        if (entry.Entity is IStoreOwned stored)
+        {
+            if (stored.StoreId == 0)
+            {
+                stored.StoreId = _tenant.RequireStoreId();
+            }
+            else if (!_tenant.CanAccessStore(stored.StoreId))
+            {
+                throw new ForbiddenException("You do not work in that store.");
+            }
+        }
+    }
+
+    private void GuardExisting(EntityEntry<ITenantOwned> entry)
+    {
+        var tenantId = _tenant.RequireTenantId();
+        var tenant = entry.Property(e => e.TenantId);
+        if (tenant.OriginalValue != tenantId || tenant.CurrentValue != tenantId)
+        {
+            throw new ForbiddenException("You cannot write to another company's data.");
+        }
+
+        if (entry.Entity is IStoreOwned stored)
+        {
+            var originalStore = (int)entry.Property(nameof(IStoreOwned.StoreId)).OriginalValue!;
+            if (!_tenant.CanAccessStore(originalStore) || !_tenant.CanAccessStore(stored.StoreId))
+            {
+                throw new ForbiddenException("You do not work in that store.");
+            }
+        }
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

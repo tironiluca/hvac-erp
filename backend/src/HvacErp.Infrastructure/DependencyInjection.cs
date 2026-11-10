@@ -28,6 +28,7 @@ public static class DependencyInjection
                 .UseSnakeCaseNamingConvention());
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+        services.AddScoped<TenantAccessResolver>();
         services.AddTransient<IClaimsTransformation, SupabaseUserClaimsTransformation>();
 
         services.AddHttpClient<IFileStorageService, SupabaseStorageService>(ConfigureSupabaseClient);

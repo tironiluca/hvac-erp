@@ -31,8 +31,9 @@ public class QuoteAttachmentService(IAppDbContext context, IFileStorageService s
 
     public async Task DeleteAsync(int quoteId, int attachmentId, CancellationToken cancellationToken = default)
     {
+        // Child rows are filtered by tenant only; going through the quote applies its store filter too.
         var attachment = await context.QuoteAttachments
-            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.QuoteId == quoteId, cancellationToken)
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.QuoteId == quoteId && a.Quote.Id == quoteId, cancellationToken)
             ?? throw new NotFoundException(nameof(QuoteAttachment), attachmentId);
 
         // Removes the DB row only — the underlying Storage object is left in place. Not worth

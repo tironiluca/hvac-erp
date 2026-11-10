@@ -12,14 +12,14 @@ public class InMemoryPresenceStoreTests
     public async Task Roster_collapses_tabs_and_orders_by_name()
     {
         var store = new InMemoryCalendarPresenceStore();
-        await store.AddAsync("c1", new CalendarPresenceDto("u2", "zoe@x"));
-        await store.AddAsync("c2", new CalendarPresenceDto("u1", "anna@x"));
-        await store.AddAsync("c3", new CalendarPresenceDto("u2", "zoe@x"));
+        await store.AddAsync("c1", 1, new CalendarPresenceDto("u2", "zoe@x"));
+        await store.AddAsync("c2", 1, new CalendarPresenceDto("u1", "anna@x"));
+        await store.AddAsync("c3", 1, new CalendarPresenceDto("u2", "zoe@x"));
 
-        Assert.Equal(["anna@x", "zoe@x"], (await store.GetRosterAsync()).Select(p => p.Name));
+        Assert.Equal(["anna@x", "zoe@x"], (await store.GetRosterAsync(1)).Select(p => p.Name));
 
         await store.RemoveAsync("c1");
-        Assert.Equal(2, (await store.GetRosterAsync()).Count); // zoe still has a second tab
+        Assert.Equal(2, (await store.GetRosterAsync(1)).Count); // zoe still has a second tab
     }
 }
 
@@ -60,14 +60,14 @@ public class RedisPresenceStoreTests : IAsyncLifetime
         var a = Instance();
         var b = Instance();
 
-        await a.AddAsync("ca", new CalendarPresenceDto("u1", "anna@x"));
-        await b.AddAsync("cb", new CalendarPresenceDto("u2", "bruno@x"));
-        await b.AddAsync("cb2", new CalendarPresenceDto("u1", "anna@x"));
+        await a.AddAsync("ca", 1, new CalendarPresenceDto("u1", "anna@x"));
+        await b.AddAsync("cb", 1, new CalendarPresenceDto("u2", "bruno@x"));
+        await b.AddAsync("cb2", 1, new CalendarPresenceDto("u1", "anna@x"));
 
-        Assert.Equal(["anna@x", "bruno@x"], (await a.GetRosterAsync()).Select(p => p.Name));
+        Assert.Equal(["anna@x", "bruno@x"], (await a.GetRosterAsync(1)).Select(p => p.Name));
 
         await b.RemoveAsync("cb");
-        Assert.Equal(["anna@x"], (await a.GetRosterAsync()).Select(p => p.Name));
+        Assert.Equal(["anna@x"], (await a.GetRosterAsync(1)).Select(p => p.Name));
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public class RedisPresenceStoreTests : IAsyncLifetime
         if (_redis is null) return;
         var crashed = Instance();
         var alive = Instance();
-        await crashed.AddAsync("dead", new CalendarPresenceDto("u1", "ghost@x"));
-        await alive.AddAsync("live", new CalendarPresenceDto("u2", "real@x"));
+        await crashed.AddAsync("dead", 1, new CalendarPresenceDto("u1", "ghost@x"));
+        await alive.AddAsync("live", 1, new CalendarPresenceDto("u2", "real@x"));
 
         // Only the surviving instance keeps beating past the TTL.
         for (var i = 0; i < 4; i++)
@@ -86,8 +86,8 @@ public class RedisPresenceStoreTests : IAsyncLifetime
             await alive.HeartbeatAsync();
         }
 
-        Assert.Equal(["real@x"], (await alive.GetRosterAsync()).Select(p => p.Name));
-        Assert.False(await alive.HeartbeatAsync()); // already pruned — nothing more to drop
+        Assert.Equal(["real@x"], (await alive.GetRosterAsync(1)).Select(p => p.Name));
+        Assert.Empty(await alive.HeartbeatAsync()); // already pruned — nothing more to drop
     }
 
     [Fact]
@@ -96,12 +96,12 @@ public class RedisPresenceStoreTests : IAsyncLifetime
         if (_redis is null) return;
         var crashed = Instance();
         var alive = Instance();
-        await crashed.AddAsync("dead", new CalendarPresenceDto("u1", "ghost@x"));
+        await crashed.AddAsync("dead", 1, new CalendarPresenceDto("u1", "ghost@x"));
 
         _clock.Advance(RedisCalendarPresenceStore.Ttl + TimeSpan.FromSeconds(1));
 
-        Assert.True(await alive.HeartbeatAsync());
-        Assert.Empty(await alive.GetRosterAsync());
+        Assert.Equal([1], await alive.HeartbeatAsync()); // the tenant whose roster changed
+        Assert.Empty(await alive.GetRosterAsync(1));
     }
 
     private sealed class ManualClock(DateTimeOffset start) : TimeProvider

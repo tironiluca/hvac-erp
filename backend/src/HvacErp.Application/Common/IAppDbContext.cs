@@ -9,6 +9,16 @@ namespace HvacErp.Application.Common;
 /// </summary>
 public interface IAppDbContext
 {
+    /// <summary>
+    /// The tenant and stores this context filters on and stamps. Services read it when a rule depends
+    /// on the store being worked in (quote numbering, which store a new record goes to).
+    /// </summary>
+    ITenantContext Tenant { get; }
+
+    DbSet<Tenant> Tenants { get; }
+    DbSet<Store> Stores { get; }
+    DbSet<TenantMembership> TenantMemberships { get; }
+    DbSet<StoreAccess> StoreAccesses { get; }
     DbSet<AppUser> Users { get; }
     DbSet<Installer> Installers { get; }
     DbSet<Operator> Operators { get; }

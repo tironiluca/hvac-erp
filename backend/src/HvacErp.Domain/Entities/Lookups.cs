@@ -1,8 +1,10 @@
 namespace HvacErp.Domain.Entities;
 
 /// <summary>A field installer; <see cref="Crew"/> groups installers into calendar lanes.</summary>
-public class Installer
+public class Installer : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Mobile { get; set; }
@@ -12,8 +14,10 @@ public class Installer
 }
 
 /// <summary>A sales operator / agent who owns quotes.</summary>
-public class Operator
+public class Operator : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -22,23 +26,29 @@ public class Operator
 }
 
 /// <summary>How a client found the business (marketing source).</summary>
-public class ClientSource
+public class ClientSource : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
     public string Description { get; set; } = string.Empty;
 }
 
 /// <summary>Classification of products and service items.</summary>
-public class ProductType
+public class ProductType : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
 }
 
 /// <summary>Pricing tier/rules applied to one or more products (markup, VAT, discount ladder, fees).</summary>
-public class ProductPriceList
+public class ProductPriceList : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
     public string Description { get; set; } = string.Empty;
     public decimal Vat { get; set; }
@@ -56,8 +66,10 @@ public class ProductPriceList
 }
 
 /// <summary>One rung of a price list's cascading discount ladder (applied in <see cref="TierOrder"/> order).</summary>
-public class PriceListDiscountTier
+public class PriceListDiscountTier : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     public int PriceListId { get; set; }
@@ -72,8 +84,10 @@ public class PriceListDiscountTier
 /// WiFi module, …). DB-backed so the business can add a new extra without a code change; carries
 /// its own default price and the metadata the pricing engine needs.
 /// </summary>
-public class ExtraType
+public class ExtraType : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     /// <summary>Stable machine key (e.g. <c>ELECTRICAL_WIRING</c>) — safe for code to branch on.</summary>
@@ -96,8 +110,10 @@ public class ExtraType
 }
 
 /// <summary>A line item from the labor/consumables price list (e.g. wall bracket, extra pipe meter, duct grille).</summary>
-public class ServiceItem
+public class ServiceItem : ITenantOwned
 {
+    public int TenantId { get; set; }
+
     public int Id { get; set; }
 
     /// <summary>

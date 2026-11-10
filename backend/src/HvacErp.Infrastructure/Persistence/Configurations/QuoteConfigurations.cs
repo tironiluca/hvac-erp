@@ -9,7 +9,8 @@ public class QuoteConfiguration : IEntityTypeConfiguration<Quote>
 {
     public void Configure(EntityTypeBuilder<Quote> builder)
     {
-        builder.HasIndex(q => new { q.Number, q.Version, q.Revision }).IsUnique();
+        // Quotes are numbered per store.
+        builder.HasIndex(q => new { q.StoreId, q.Number, q.Version, q.Revision }).IsUnique();
 
         builder.Property(q => q.Department).HasMaxLength(30).IsRequired();
         builder.Property(q => q.Vat).HasMaxLength(30).IsRequired();
@@ -179,7 +180,7 @@ public class IncentiveSchemeConfiguration : IEntityTypeConfiguration<IncentiveSc
     public void Configure(EntityTypeBuilder<IncentiveScheme> builder)
     {
         builder.Property(s => s.Code).HasMaxLength(50).IsRequired();
-        builder.HasIndex(s => s.Code).IsUnique();
+        builder.HasIndex(s => new { s.TenantId, s.Code }).IsUnique();
         builder.Property(s => s.Label).HasMaxLength(150).IsRequired();
         builder.Property(s => s.Kind).HasMaxLength(30).IsRequired();
         builder.Property(s => s.PdfLabel).HasMaxLength(200);

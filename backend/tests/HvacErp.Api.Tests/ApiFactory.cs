@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using HvacErp.Application.Common;
 using HvacErp.Infrastructure.Health;
 using HvacErp.Infrastructure.Persistence;
 using System.Net;
@@ -22,6 +23,20 @@ namespace HvacErp.Api.Tests;
 public class ApiFactory : WebApplicationFactory<Program>
 {
     public const string RoleHeader = "X-Test-Role";
+    public const string UserHeader = "X-Test-User";
+    public const string TenantHeader = "X-Test-Tenant";
+    public const string StoresHeader = "X-Test-Stores";
+    public const string PlatformAdminHeader = "X-Test-Platform-Admin";
+
+    /// <summary>
+    /// Signs the caller in as this user id with nothing but the claims Supabase issues, so the real
+    /// sign-in resolution (database lookups, <c>X-Tenant-Id</c> / <c>X-Store-Id</c>) decides the rest.
+    /// </summary>
+    public const string SupabaseIdentityHeader = "X-Test-Supabase-User";
+
+    /// <summary>Role value that signs a caller in without a membership in any tenant.</summary>
+    public const string NoMembership = "None";
+    public const string DefaultUserId = "00000000-0000-0000-0000-000000000001";
     private readonly string _databaseName = $"api-tests-{Guid.NewGuid():N}";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -61,18 +76,31 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// <summary>Status the stubbed Supabase Storage bucket lookup returns.</summary>
     public HttpStatusCode StorageStatus { get; set; } = HttpStatusCode.OK;
 
-    public HttpClient ClientAs(string? role)
+    /// <summary>A client signed in with <paramref name="role"/> in <paramref name="tenantId"/>, reading <paramref name="stores"/> (comma-separated ids).</summary>
+    public HttpClient ClientAs(string? role, int tenantId = 1, string stores = "1", bool platformAdmin = false)
     {
         var client = CreateClient();
         if (role is not null)
         {
             client.DefaultRequestHeaders.Add(RoleHeader, role);
+            client.DefaultRequestHeaders.Add(TenantHeader, tenantId.ToString());
+            client.DefaultRequestHeaders.Add(StoresHeader, stores);
+            if (platformAdmin)
+            {
+                client.DefaultRequestHeaders.Add(PlatformAdminHeader, "true");
+            }
         }
         return client;
     }
 }
 
-/// <summary>Authenticates any request carrying <see cref="ApiFactory.RoleHeader"/> as a user with that role.</summary>
+/// <summary>
+/// Authenticates any request carrying <see cref="ApiFactory.RoleHeader"/> as a user with that role in
+/// tenant 1 / store 1 — or in the tenant and stores named by <see cref="ApiFactory.TenantHeader"/> /
+/// <see cref="ApiFactory.StoresHeader"/>. The role <see cref="ApiFactory.NoMembership"/> signs the
+/// caller in without any tenant. The claims are the ones <c>SupabaseUserClaimsTransformation</c>
+/// would add, so the transformation leaves the principal alone.
+/// </summary>
 public sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
@@ -80,18 +108,46 @@ public sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions>
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (Request.Headers.TryGetValue(ApiFactory.SupabaseIdentityHeader, out var supabaseUser))
+        {
+            var raw = new ClaimsIdentity(
+                [new Claim("sub", supabaseUser.ToString()), new Claim("email", $"{supabaseUser}@example.com")], SchemeName);
+            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(raw), SchemeName)));
+        }
+
         if (!Request.Headers.TryGetValue(ApiFactory.RoleHeader, out var role) || string.IsNullOrEmpty(role))
         {
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var identity = new ClaimsIdentity(
+        var userId = Request.Headers.TryGetValue(ApiFactory.UserHeader, out var user) ? user.ToString() : ApiFactory.DefaultUserId;
+        List<Claim> claims =
         [
-            new Claim("sub", "00000000-0000-0000-0000-000000000001"),
-            new Claim("email", $"{role.ToString().ToLowerInvariant()}@example.com"),
-            new Claim(ClaimTypes.Role, role.ToString()),
-        ], SchemeName);
+            new("sub", userId),
+            new(AppClaimTypes.UserId, userId),
+            new("email", $"{role.ToString().ToLowerInvariant()}@example.com"),
+        ];
 
+        if (role != ApiFactory.NoMembership)
+        {
+            var tenant = Request.Headers.TryGetValue(ApiFactory.TenantHeader, out var t) ? t.ToString() : "1";
+            var stores = (Request.Headers.TryGetValue(ApiFactory.StoresHeader, out var s) ? s.ToString() : "1")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            claims.Add(new Claim(ClaimTypes.Role, role.ToString()));
+            claims.Add(new Claim(AppClaimTypes.TenantId, tenant));
+            claims.AddRange(stores.Select(id => new Claim(AppClaimTypes.StoreId, id)));
+            if (stores.Length == 1)
+            {
+                claims.Add(new Claim(AppClaimTypes.ActiveStoreId, stores[0]));
+            }
+        }
+
+        if (Request.Headers.ContainsKey(ApiFactory.PlatformAdminHeader))
+        {
+            claims.Add(new Claim(AppClaimTypes.PlatformAdmin, "true"));
+        }
+
+        var identity = new ClaimsIdentity(claims, SchemeName);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
     }
 }

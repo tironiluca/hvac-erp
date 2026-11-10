@@ -22,9 +22,9 @@ public sealed class PresenceHeartbeatService(
         {
             try
             {
-                if (await store.HeartbeatAsync())
+                foreach (var tenantId in await store.HeartbeatAsync())
                 {
-                    await hub.Clients.All.PresenceChanged(await store.GetRosterAsync());
+                    await hub.Clients.Group(CalendarGroups.Tenant(tenantId)).PresenceChanged(await store.GetRosterAsync(tenantId));
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
