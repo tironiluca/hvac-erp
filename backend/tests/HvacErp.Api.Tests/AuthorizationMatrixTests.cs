@@ -123,6 +123,24 @@ public class AuthorizationMatrixTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.DoesNotContain((await factory.ClientAs("Admin").SendAsync(Request(method, url))).StatusCode, Denied);
     }
 
+    [Theory]
+    [InlineData("GET", "/api/platform/tenants")]
+    [InlineData("POST", "/api/platform/tenants")]
+    [InlineData("PUT", "/api/platform/tenants/1")]
+    public async Task Tenants_are_managed_by_platform_administrators_only(string method, string url)
+    {
+        // A tenant's own Admin is not enough…
+        Assert.Equal(HttpStatusCode.Forbidden, (await factory.ClientAs("Admin").SendAsync(Request(method, url))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.ClientAs(null).SendAsync(Request(method, url))).StatusCode);
+
+        // …while a platform administrator needs no particular role, nor even a membership.
+        Assert.DoesNotContain((await factory.ClientAs("Sales", platformAdmin: true).SendAsync(Request(method, url))).StatusCode, Denied);
+        var withoutMembership = factory.CreateClient();
+        withoutMembership.DefaultRequestHeaders.Add(ApiFactory.RoleHeader, ApiFactory.NoMembership);
+        withoutMembership.DefaultRequestHeaders.Add(ApiFactory.PlatformAdminHeader, "true");
+        Assert.DoesNotContain((await withoutMembership.SendAsync(Request(method, url))).StatusCode, Denied);
+    }
+
     [Fact]
     public async Task Branding_is_readable_anonymously_for_the_login_page()
     {

@@ -71,3 +71,23 @@ public record AddMemberRequest(string Email, UserRole Role, bool AllStores, List
 
 /// <summary>Changes a member's role and stores.</summary>
 public record UpdateMemberRequest(UserRole Role, bool AllStores, List<int>? StoreIds = null, int? InstallerId = null);
+
+/// <summary>A tenant, as listed for the platform administrator.</summary>
+/// <param name="Id">Tenant id.</param>
+/// <param name="Name">Display name.</param>
+/// <param name="LegalName">Registered company name, when recorded.</param>
+/// <param name="VatNumber">VAT number, when recorded.</param>
+/// <param name="IsActive">False while suspended: its members have no access, its data is kept.</param>
+/// <param name="CreatedAt">When it was created.</param>
+/// <param name="Stores">How many stores it has.</param>
+/// <param name="Members">How many members it has.</param>
+public record TenantDto(int Id, string Name, string? LegalName, string? VatNumber, bool IsActive, DateTime CreatedAt, int Stores, int Members);
+
+/// <summary>
+/// Creates a company: the tenant, its first store, the defaults its quotes need, and its first
+/// Admin — invited by e-mail when they have no account yet.
+/// </summary>
+public record CreateTenantRequest(string Name, string? LegalName, string? VatNumber, string FirstStoreName, string AdminEmail);
+
+/// <summary>Edits a tenant's identity, or suspends / resumes it.</summary>
+public record UpdateTenantRequest(string Name, string? LegalName, string? VatNumber, bool IsActive);

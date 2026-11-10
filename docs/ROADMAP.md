@@ -278,13 +278,15 @@ users, roles and store access, per-store numbering and overrides.
   - [x] API for a tenant's Admin, `/api/admin`: stores (add, edit, deactivate — never the last
     active one) and members (add by e-mail, role, stores, remove — never the last Admin). Someone
     with no account is invited through Supabase Auth and chooses a password from the link.
-  - [ ] API for the platform administrator: tenants (create with its first store and Admin,
-    suspend) and tenant provisioning.
+  - [x] API for the platform administrator, `/api/platform/tenants`: list, create (the tenant, its
+    first store, the defaults its quotes need and its first Admin, as one unit of work), edit,
+    suspend / resume — never the tenant being worked in.
   - [ ] Set-password page for invitation and recovery links; "forgot password" on the login page.
   - [ ] Screens: stores, members, tenants.
-- [ ] **Tenant provisioning**: a new tenant starts with an empty catalogue; creating one must seed
-  what the pricing engine needs (the coded service items, extra types, default incentive schemes,
-  PDF templates). Today: `dotnet run -- seed --tenant <id>`.
+- [x] **Tenant provisioning**: creating a tenant seeds what the pricing engine and the PDFs need
+  (the coded service items, extra types, default incentive schemes, a PDF template per document).
+  Its catalogue — products, price lists, installers — starts empty until the screens of §12 exist;
+  `dotnet run -- seed --tenant <id>` loads the sample one.
 - [ ] **Per-tenant settings**: branding (the login page is anonymous, so the tenant has to come
   from the host name — §22), ERP connection per tenant (the worker already runs across tenants),
   per-store overrides of branding / PDF templates.

@@ -34,6 +34,20 @@ public static class DevDataSeeder
     }
 
     /// <summary>
+    /// What a newly created tenant cannot work without: the coded service items and extra types the
+    /// pricing engine reads, the default incentive schemes and a PDF template per document type.
+    /// No sample catalogue, clients or staff — those are the company's own data. The context must
+    /// already work for the tenant; safe to run again.
+    /// </summary>
+    public static async Task SeedTenantDefaultsAsync(AppDbContext context, CancellationToken cancellationToken = default)
+    {
+        await SeedServiceItemsAsync(context, cancellationToken);
+        await SeedExtraTypesAsync(context, cancellationToken);
+        await SeedIncentiveSchemesAsync(context, cancellationToken);
+        await SeedPdfTemplatesAsync(context, cancellationToken);
+    }
+
+    /// <summary>
     /// The built-in PDF layout template for each document type (quote / repair / installation),
     /// seeded active + <c>IsSystemDefault</c>. Its definition is <see cref="PdfTemplateDefaults"/>,
     /// which reproduces the pre-Phase-10 hardcoded layout. Inserted per type only when that type has

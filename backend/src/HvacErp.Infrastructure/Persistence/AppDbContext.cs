@@ -22,8 +22,10 @@ namespace HvacErp.Infrastructure.Persistence;
 /// </summary>
 public class AppDbContext : DbContext, IAppDbContext
 {
-    private readonly ITenantContext _tenant;
-    private int _systemScopes;
+    private readonly ITenantContext _requestTenant;
+
+    // The innermost AsSystem / AsTenant scope, or null outside any.
+    private ITenantContext? _scopeTenant;
 
     /// <summary>A context with no tenant: tenant-owned sets read empty and refuse inserts.</summary>
     public AppDbContext(DbContextOptions<AppDbContext> options) : this(options, FixedTenantContext.None)
@@ -34,17 +36,20 @@ public class AppDbContext : DbContext, IAppDbContext
     [ActivatorUtilitiesConstructor]
     public AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant) : base(options)
     {
-        _tenant = tenant;
+        _requestTenant = tenant;
     }
 
+    // What the context works for right now: an explicit scope when one is open, else the request.
+    private ITenantContext ActiveTenant => _scopeTenant ?? _requestTenant;
+
     /// <inheritdoc />
-    public ITenantContext Tenant => _tenant;
+    public ITenantContext Tenant => ActiveTenant;
 
     // Read by the global query filters; EF evaluates context members per query, so one cached
     // model serves every tenant.
-    private bool TenantFilterOff => _systemScopes > 0 || _tenant.IsSystem;
-    private int CurrentTenantId => _tenant.TenantId ?? 0;
-    private int[] CurrentStoreIds => _tenant.StoreIds as int[] ?? [.. _tenant.StoreIds];
+    private bool TenantFilterOff => ActiveTenant.IsSystem;
+    private int CurrentTenantId => ActiveTenant.TenantId ?? 0;
+    private int[] CurrentStoreIds => ActiveTenant.StoreIds as int[] ?? [.. ActiveTenant.StoreIds];
 
     /// <summary>
     /// Switches this context to the trusted cross-tenant mode until the returned scope is disposed:
@@ -52,22 +57,36 @@ public class AppDbContext : DbContext, IAppDbContext
     /// with no caller behind it (outbox workers, sign-in resolution, seeding) — never for a request's
     /// business logic, which is why it is not on <see cref="IAppDbContext"/>.
     /// </summary>
-    public IDisposable AsSystem()
-    {
-        _systemScopes++;
-        return new SystemScope(this);
-    }
+    public IDisposable AsSystem() => new TenantScope(this, FixedTenantContext.System);
 
-    private sealed class SystemScope(AppDbContext context) : IDisposable
+    /// <summary>
+    /// Makes this context work for <paramref name="tenantId"/> and one of its stores until the
+    /// returned scope is disposed, whoever the caller is. For setting up a tenant the caller is not
+    /// a member of — creating it and seeding its defaults — in the same unit of work. Like
+    /// <see cref="AsSystem"/> it is deliberately absent from <see cref="IAppDbContext"/>.
+    /// </summary>
+    public IDisposable AsTenant(int tenantId, int storeId) => new TenantScope(this, FixedTenantContext.For(tenantId, storeId));
+
+    /// <summary>Swaps the tenant the context works for and puts the previous one back when disposed.</summary>
+    private sealed class TenantScope : IDisposable
     {
+        private readonly AppDbContext _context;
+        private readonly ITenantContext? _previous;
         private bool _disposed;
+
+        public TenantScope(AppDbContext context, ITenantContext tenant)
+        {
+            _context = context;
+            _previous = context._scopeTenant;
+            context._scopeTenant = tenant;
+        }
 
         public void Dispose()
         {
             if (!_disposed)
             {
                 _disposed = true;
-                context._systemScopes--;
+                _context._scopeTenant = _previous;
             }
         }
     }
@@ -193,7 +212,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
     private void StampNew(EntityEntry<ITenantOwned> entry)
     {
-        var tenantId = _tenant.RequireTenantId();
+        var tenantId = ActiveTenant.RequireTenantId();
         if (entry.Entity.TenantId == 0)
         {
             entry.Entity.TenantId = tenantId;
@@ -207,9 +226,9 @@ public class AppDbContext : DbContext, IAppDbContext
         {
             if (stored.StoreId == 0)
             {
-                stored.StoreId = _tenant.RequireStoreId();
+                stored.StoreId = ActiveTenant.RequireStoreId();
             }
-            else if (!_tenant.CanAccessStore(stored.StoreId))
+            else if (!ActiveTenant.CanAccessStore(stored.StoreId))
             {
                 throw new ForbiddenException("You do not work in that store.");
             }
@@ -218,7 +237,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
     private void GuardExisting(EntityEntry<ITenantOwned> entry)
     {
-        var tenantId = _tenant.RequireTenantId();
+        var tenantId = ActiveTenant.RequireTenantId();
         var tenant = entry.Property(e => e.TenantId);
         if (tenant.OriginalValue != tenantId || tenant.CurrentValue != tenantId)
         {
@@ -228,7 +247,7 @@ public class AppDbContext : DbContext, IAppDbContext
         if (entry.Entity is IStoreOwned stored)
         {
             var originalStore = (int)entry.Property(nameof(IStoreOwned.StoreId)).OriginalValue!;
-            if (!_tenant.CanAccessStore(originalStore) || !_tenant.CanAccessStore(stored.StoreId))
+            if (!ActiveTenant.CanAccessStore(originalStore) || !ActiveTenant.CanAccessStore(stored.StoreId))
             {
                 throw new ForbiddenException("You do not work in that store.");
             }

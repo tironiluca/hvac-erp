@@ -5,12 +5,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using HvacErp.Application.Common;
 using HvacErp.Application.Erp;
+using HvacErp.Application.Interfaces;
 using HvacErp.Infrastructure.Auth;
 using HvacErp.Infrastructure.Erp;
 using HvacErp.Infrastructure.Health;
 using HvacErp.Infrastructure.Persistence;
 using HvacErp.Infrastructure.Services.Pdf;
 using HvacErp.Infrastructure.Services.Storage;
+using HvacErp.Infrastructure.Tenancy;
 
 namespace HvacErp.Infrastructure;
 
@@ -29,6 +31,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<TenantAccessResolver>();
+        services.AddScoped<IPlatformTenantService, PlatformTenantService>();
         services.AddTransient<IClaimsTransformation, SupabaseUserClaimsTransformation>();
 
         services.AddHttpClient<IFileStorageService, SupabaseStorageService>(ConfigureSupabaseClient);

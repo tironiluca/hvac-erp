@@ -41,7 +41,7 @@ public class TenantAdminController(ITenantAdministrationService administration, 
     /// </summary>
     [HttpPost("members")]
     public async Task<ActionResult<MemberDto>> AddMember(AddMemberRequest request, CancellationToken cancellationToken) =>
-        Ok(await administration.AddMemberAsync(request, InviteLanding(), cancellationToken));
+        Ok(await administration.AddMemberAsync(request, InviteLanding.For(Request, configuration), cancellationToken));
 
     /// <summary>Changes a member's role and stores. 400 when it would leave the tenant without an Admin.</summary>
     [HttpPut("members/{id:int}")]
@@ -54,18 +54,5 @@ public class TenantAdminController(ITenantAdministrationService administration, 
     {
         await administration.RemoveMemberAsync(id, cancellationToken);
         return NoContent();
-    }
-
-    /// <summary>
-    /// Where an invitation link lands: the set-password page of the SPA the request came from —
-    /// taken from the Origin header only when it is one of the configured frontend origins, so the
-    /// link can never be pointed at someone else's site.
-    /// </summary>
-    private string? InviteLanding()
-    {
-        var allowed = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-        var origin = Request.Headers.Origin.ToString();
-        var site = allowed.FirstOrDefault(o => string.Equals(o, origin, StringComparison.OrdinalIgnoreCase)) ?? allowed.FirstOrDefault();
-        return string.IsNullOrWhiteSpace(site) ? null : $"{site.TrimEnd('/')}/auth/set-password";
     }
 }
