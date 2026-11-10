@@ -192,3 +192,25 @@ public sealed class FakeStorage : IFileStorageService
         return new StoredFile(copy.ToArray(), contentType);
     }
 }
+
+/// <summary>Stands in for the identity provider: hands out account ids and remembers who was invited.</summary>
+public sealed class FakeInviter : IIdentityInviter
+{
+    /// <summary>E-mail, landing page and the account id issued.</summary>
+    public List<(string Email, string? RedirectTo, Guid AccountId)> Invitations { get; } = [];
+
+    /// <summary>E-mails the provider already has an account for.</summary>
+    public HashSet<string> ExistingAccounts { get; } = [];
+
+    public Task<Guid> InviteAsync(string email, string? redirectTo, CancellationToken cancellationToken = default)
+    {
+        if (ExistingAccounts.Contains(email))
+        {
+            throw new ConflictException($"An account for {email} already exists.");
+        }
+
+        var accountId = Guid.NewGuid();
+        Invitations.Add((email, redirectTo, accountId));
+        return Task.FromResult(accountId);
+    }
+}

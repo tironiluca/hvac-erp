@@ -274,7 +274,14 @@ users, roles and store access, per-store numbering and overrides.
   Postgres with the policies run as the Data API runs them; model-vs-migration coverage tests so a
   new table or reference cannot skip its tenant key, composite FK or policy.
 - [ ] **Administration** (with §12): platform admin creates / suspends tenants; tenant Admin edits
-  company data, stores, members, roles and store access. Until then these are SQL inserts.
+  company data, stores, members, roles and store access.
+  - [x] API for a tenant's Admin, `/api/admin`: stores (add, edit, deactivate — never the last
+    active one) and members (add by e-mail, role, stores, remove — never the last Admin). Someone
+    with no account is invited through Supabase Auth and chooses a password from the link.
+  - [ ] API for the platform administrator: tenants (create with its first store and Admin,
+    suspend) and tenant provisioning.
+  - [ ] Set-password page for invitation and recovery links; "forgot password" on the login page.
+  - [ ] Screens: stores, members, tenants.
 - [ ] **Tenant provisioning**: a new tenant starts with an empty catalogue; creating one must seed
   what the pricing engine needs (the coded service items, extra types, default incentive schemes,
   PDF templates). Today: `dotnet run -- seed --tenant <id>`.
@@ -494,7 +501,8 @@ Found by reading the code against a live-deployment threat model. Each item name
   column): no auto-provisioning, `Bootstrap:AdminEmail`, a member-only default policy, `users.is_active`
   to disable a person, RLS policies that give nothing without a membership; tests for the
   unknown-identity path at every layer.
-- [ ] Invitations by e-mail, "forgot password", optional TOTP (with the users screen of §12).
+- [ ] Invitations by e-mail (API done, §6), "forgot password" and the set-password page, optional
+  TOTP.
 - [x] Private documents: rows store the object's path (migration `PrivateDocumentStorage`, which
   strips the public prefix from stored URLs); `GET …/pdf-url` and `GET …/attachments/{id}/url`
   issue a signed link per click; the SPA opens documents through them. Branding assets, public by

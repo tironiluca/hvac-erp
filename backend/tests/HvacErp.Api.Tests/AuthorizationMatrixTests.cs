@@ -104,6 +104,25 @@ public class AuthorizationMatrixTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.Equal(expected, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("GET", "/api/admin/stores")]
+    [InlineData("POST", "/api/admin/stores")]
+    [InlineData("PUT", "/api/admin/stores/1")]
+    [InlineData("GET", "/api/admin/members")]
+    [InlineData("POST", "/api/admin/members")]
+    [InlineData("PUT", "/api/admin/members/1")]
+    [InlineData("DELETE", "/api/admin/members/1")]
+    public async Task Stores_and_members_are_administered_by_the_tenants_admin_only(string method, string url)
+    {
+        foreach (var role in new[] { "Sales", "Warehouse" })
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await factory.ClientAs(role).SendAsync(Request(method, url))).StatusCode);
+        }
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.ClientAs(null).SendAsync(Request(method, url))).StatusCode);
+        Assert.DoesNotContain((await factory.ClientAs("Admin").SendAsync(Request(method, url))).StatusCode, Denied);
+    }
+
     [Fact]
     public async Task Branding_is_readable_anonymously_for_the_login_page()
     {

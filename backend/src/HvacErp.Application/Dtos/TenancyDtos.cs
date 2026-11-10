@@ -1,3 +1,5 @@
+using HvacErp.Domain.Enums;
+
 namespace HvacErp.Application.Dtos;
 
 /// <summary>
@@ -31,3 +33,41 @@ public record TenantAccessDto(int Id, string Name, string Role, IReadOnlyList<St
 /// <param name="Name">Display name.</param>
 /// <param name="City">Where it is, when recorded.</param>
 public record StoreSummaryDto(int Id, string Name, string? City);
+
+/// <summary>A store of the current tenant, as edited by its Admin.</summary>
+public record StoreDto(int Id, string Name, string? Address, string? City, string? Phone, string? Email, bool IsActive);
+
+/// <summary>Create / update payload for a store. Deactivating hides it from the switcher; its records stay.</summary>
+public record UpsertStoreRequest(string Name, string? Address, string? City, string? Phone, string? Email, bool IsActive = true);
+
+/// <summary>A member of the current tenant: the person, their role there and the stores they may work in.</summary>
+/// <param name="Id">Membership id.</param>
+/// <param name="UserId">The person's profile id.</param>
+/// <param name="Email">Their sign-in e-mail.</param>
+/// <param name="DisplayName">Their name as shown in the app.</param>
+/// <param name="Role"><c>Admin</c> / <c>Sales</c> / <c>Warehouse</c> in this tenant.</param>
+/// <param name="AllStores">True: every store, present and future.</param>
+/// <param name="StoreIds">The stores granted when <paramref name="AllStores"/> is false.</param>
+/// <param name="InstallerId">The installer record this person corresponds to, if any.</param>
+/// <param name="IsActive">False when a platform administrator has disabled the person everywhere.</param>
+/// <param name="IsYou">True for the caller's own membership.</param>
+public record MemberDto(
+    int Id,
+    Guid UserId,
+    string Email,
+    string DisplayName,
+    string Role,
+    bool AllStores,
+    List<int> StoreIds,
+    int? InstallerId,
+    bool IsActive,
+    bool IsYou);
+
+/// <summary>
+/// Adds someone to the current tenant by e-mail. A person who has no account yet is invited: they
+/// receive a link to choose a password.
+/// </summary>
+public record AddMemberRequest(string Email, UserRole Role, bool AllStores, List<int>? StoreIds = null, int? InstallerId = null);
+
+/// <summary>Changes a member's role and stores.</summary>
+public record UpdateMemberRequest(UserRole Role, bool AllStores, List<int>? StoreIds = null, int? InstallerId = null);

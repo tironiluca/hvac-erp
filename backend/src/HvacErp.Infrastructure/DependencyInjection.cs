@@ -33,6 +33,7 @@ public static class DependencyInjection
 
         services.AddHttpClient<IFileStorageService, SupabaseStorageService>(ConfigureSupabaseClient);
         services.AddScoped<BrandingAssetMover>();
+        services.AddHttpClient<IIdentityInviter, SupabaseIdentityInviter>(ConfigureSupabaseClient);
         services.AddHttpClient<SupabaseStorageHealthCheck>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(5);
